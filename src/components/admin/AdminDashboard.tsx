@@ -39,6 +39,24 @@ const AdminDashboard: React.FC = () => {
     }).format(date);
   };
 
+  const getTimeUntilStart = (startTime: Date) => {
+    const now = new Date();
+    const diffMs = startTime.getTime() - now.getTime();
+    const diffMinutes = Math.ceil(diffMs / (1000 * 60));
+    const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+    
+    if (diffMinutes <= 0) return 'Starting now';
+    if (diffMinutes < 60) return `${diffMinutes}min`;
+    if (diffHours < 24) {
+      const hours = Math.floor(diffMinutes / 60);
+      const minutes = diffMinutes % 60;
+      return minutes > 0 ? `${hours}h ${minutes}min` : `${hours}h`;
+    }
+    const days = Math.floor(diffHours / 24);
+    const remainingHours = diffHours % 24;
+    return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -154,7 +172,7 @@ const AdminDashboard: React.FC = () => {
                   {status === 'upcoming' && (
                     <div className="mt-2 pt-2 border-t border-gray-200">
                       <p className="text-xs font-medium text-blue-700">
-                        Starts in: {Math.ceil((requirement.startTime.getTime() - new Date().getTime()) / (1000 * 60 * 60))} hours
+                        Starts in: {getTimeUntilStart(requirement.startTime)}
                       </p>
                     </div>
                   )}
