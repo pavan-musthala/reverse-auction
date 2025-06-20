@@ -101,7 +101,7 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
                       <img
                         src={requirement.images[currentImageIndex]}
                         alt={`${requirement.productName} - Image ${currentImageIndex + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain bg-white"
                       />
                     </div>
                     
@@ -150,7 +150,7 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
                           <img
                             src={image}
                             alt={`Thumbnail ${index + 1}`}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain bg-white"
                           />
                         </button>
                       ))}

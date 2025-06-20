@@ -123,7 +123,7 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
                       <img
                         src={requirement.images[currentImageIndex]}
                         alt={`${requirement.productName} - Image ${currentImageIndex + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain bg-white"
                       />
                     </div>
                     
@@ -172,7 +172,7 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
                           <img
                             src={image}
                             alt={`Thumbnail ${index + 1}`}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-contain bg-white"
                           />
                         </button>
                       ))}
