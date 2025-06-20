@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar } from 'lucide-react';
+import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar, Trash2 } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import AddRequirementModal from './AddRequirementModal';
 import RequirementDetailModal from './RequirementDetailModal';
 import CountdownTimer from '../common/CountdownTimer';
 
 const AdminDashboard: React.FC = () => {
-  const { requirements, getRequirementBids, getLowestBid, getRequirementStatus } = useAuction();
+  const { requirements, getRequirementBids, getLowestBid, getRequirementStatus, deleteRequirement } = useAuction();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
 
@@ -21,6 +21,22 @@ const AdminDashboard: React.FC = () => {
       default:
         return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  const handleDeleteRequirement = (requirementId: string, requirementName: string) => {
+    if (window.confirm(`Are you sure you want to delete "${requirementName}"? This action cannot be undone.`)) {
+      deleteRequirement(requirementId);
+    }
+  };
+
+  const formatDateTime = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(date);
   };
 
   return (
@@ -64,78 +80,114 @@ const AdminDashboard: React.FC = () => {
                       +{requirement.images.length - 1}
                     </div>
                   )}
+                  {/* Delete button */}
+                  <button
+                    onClick={() => handleDeleteRequirement(requirement.id, requirement.productName)}
+                    className="absolute top-3 left-3 p-2 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors opacity-90 hover:opacity-100"
+                    title="Delete requirement"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               )}
 
               <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center min-w-0 flex-1">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start min-w-0 flex-1">
                     <div className="w-10 h-10 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Package className="w-5 h-5 text-orange-600" />
                     </div>
                     <div className="ml-3 min-w-0 flex-1">
-                      <h3 className="text-base font-semibold text-gray-900 truncate">
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">
                         {requirement.productName}
                       </h3>
-                      <p className="text-xs text-gray-500">HS: {requirement.hsCode}</p>
+                      <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${getStatusColor(status)}`}>
-                    {status}
-                  </span>
+                  <div className="flex flex-col items-end space-y-2 flex-shrink-0 ml-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                      {status}
+                    </span>
+                    {!requirement.images?.length && (
+                      <button
+                        onClick={() => handleDeleteRequirement(requirement.id, requirement.productName)}
+                        className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+                        title="Delete requirement"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Compact Timer Section */}
-                <div className="mb-3 p-2 bg-gray-50 rounded-lg">
-                  {status === 'upcoming' && (
-                    <div className="text-xs text-gray-600">
-                      <div className="flex items-center mb-1">
+                {/* Auction Timeline */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center text-gray-600">
                         <Calendar className="w-3 h-3 mr-1" />
-                        Starts: {new Date(requirement.startTime).toLocaleDateString()}
+                        <span>Starts:</span>
                       </div>
+                      <span className="font-medium text-gray-900">
+                        {formatDateTime(requirement.startTime)}
+                      </span>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center text-gray-600">
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span>Ends:</span>
+                      </div>
+                      <span className="font-medium text-gray-900">
+                        {formatDateTime(requirement.endTime)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Live Timer */}
                   {status === 'open' && (
-                    <div>
-                      <p className="text-xs font-medium text-green-700 mb-1">Live Auction</p>
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-green-700 mb-1">Time Remaining:</p>
                       <CountdownTimer endTime={requirement.endTime} className="text-xs" />
                     </div>
                   )}
-                  {status === 'closed' && (
-                    <div className="text-xs text-red-600 font-medium">
-                      Auction Ended
+                  
+                  {status === 'upcoming' && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-blue-700">
+                        Starts in: {Math.ceil((requirement.startTime.getTime() - new Date().getTime()) / (1000 * 60 * 60))} hours
+                      </p>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-between text-xs">
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm">
                     <span className="text-gray-600">MOQ:</span>
-                    <span className="font-medium">{requirement.moq.toLocaleString()}</span>
+                    <span className="font-semibold">{requirement.moq.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total Bids:</span>
-                    <span className="font-medium">{bids.length}</span>
+                    <span className="font-semibold">{bids.length}</span>
                   </div>
                   {lowestBid && (
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Lowest Bid:</span>
-                      <span className="font-semibold text-green-600">
+                      <span className="font-bold text-green-600">
                         ${lowestBid.amount.toLocaleString()}
                       </span>
                     </div>
                   )}
                 </div>
 
-                <p className="text-gray-600 text-xs mb-3 line-clamp-2">
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed">
                   {requirement.description}
                 </p>
 
                 <button
                   onClick={() => setSelectedRequirement(requirement.id)}
-                  className="w-full inline-flex items-center justify-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
+                  className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
                 >
-                  <Eye className="w-4 h-4 mr-1" />
+                  <Eye className="w-4 h-4 mr-2" />
                   View Details
                 </button>
               </div>

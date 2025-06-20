@@ -39,6 +39,7 @@ export interface AuctionContextType {
   requirements: ProductRequirement[];
   bids: Bid[];
   addRequirement: (requirement: Omit<ProductRequirement, 'id' | 'createdAt'>) => void;
+  deleteRequirement: (requirementId: string) => void;
   addBid: (bid: Omit<Bid, 'id' | 'timestamp'>) => boolean;
   getRequirementBids: (requirementId: string) => Bid[];
   getLowestBid: (requirementId: string) => Bid | null;

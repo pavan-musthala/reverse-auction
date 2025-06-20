@@ -74,6 +74,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     setRequirements(prev => [...prev, newRequirement]);
   };
 
+  const deleteRequirement = (requirementId: string) => {
+    setRequirements(prev => prev.filter(req => req.id !== requirementId));
+    // Also remove all bids for this requirement
+    setBids(prev => prev.filter(bid => bid.requirementId !== requirementId));
+  };
+
   const addBid = (bid: Omit<Bid, 'id' | 'timestamp'>): boolean => {
     const requirement = requirements.find(req => req.id === bid.requirementId);
     if (!requirement) return false;
@@ -141,6 +147,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     requirements,
     bids,
     addRequirement,
+    deleteRequirement,
     addBid,
     getRequirementBids,
     getLowestBid,

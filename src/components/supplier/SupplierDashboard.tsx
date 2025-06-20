@@ -24,6 +24,16 @@ const SupplierDashboard: React.FC = () => {
     }
   };
 
+  const formatDateTime = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }).format(date);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
@@ -60,79 +70,101 @@ const SupplierDashboard: React.FC = () => {
               )}
 
               <div className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center min-w-0 flex-1">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start min-w-0 flex-1">
                     <div className="w-10 h-10 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Package className="w-5 h-5 text-orange-600" />
                     </div>
                     <div className="ml-3 min-w-0 flex-1">
-                      <h3 className="text-base font-semibold text-gray-900 truncate">
+                      <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">
                         {requirement.productName}
                       </h3>
-                      <p className="text-xs text-gray-500">HS: {requirement.hsCode}</p>
+                      <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${getStatusColor(status)}`}>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-3 ${getStatusColor(status)}`}>
                     {status}
                   </span>
                 </div>
 
-                {/* Compact Timer Section */}
-                <div className="mb-3 p-2 bg-gray-50 rounded-lg">
-                  {status === 'upcoming' && (
-                    <div className="text-xs text-gray-600">
-                      <div className="flex items-center mb-1">
+                {/* Auction Timeline */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center text-gray-600">
                         <Calendar className="w-3 h-3 mr-1" />
-                        Starts: {new Date(requirement.startTime).toLocaleDateString()}
+                        <span>Starts:</span>
                       </div>
+                      <span className="font-medium text-gray-900">
+                        {formatDateTime(requirement.startTime)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <div className="flex items-center text-gray-600">
+                        <Clock className="w-3 h-3 mr-1" />
+                        <span>Ends:</span>
+                      </div>
+                      <span className="font-medium text-gray-900">
+                        {formatDateTime(requirement.endTime)}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Live Timer */}
+                  {status === 'open' && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-green-700 mb-1">Time Remaining:</p>
+                      <CountdownTimer endTime={requirement.endTime} className="text-xs" />
                     </div>
                   )}
-                  {status === 'open' && (
-                    <div>
-                      <p className="text-xs font-medium text-green-700 mb-1">Live Auction</p>
-                      <CountdownTimer endTime={requirement.endTime} className="text-xs" />
+                  
+                  {status === 'upcoming' && (
+                    <div className="mt-2 pt-2 border-t border-gray-200">
+                      <p className="text-xs font-medium text-blue-700">
+                        Starts in: {Math.ceil((requirement.startTime.getTime() - new Date().getTime()) / (1000 * 60 * 60))} hours
+                      </p>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2 mb-3">
-                  <div className="flex justify-between text-xs">
+                <div className="space-y-2 mb-4">
+                  <div className="flex justify-between text-sm">
                     <span className="text-gray-600">MOQ:</span>
-                    <span className="font-medium">{requirement.moq.toLocaleString()}</span>
+                    <span className="font-semibold">{requirement.moq.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Total Bids:</span>
-                    <span className="font-medium">{bids.length}</span>
+                    <span className="font-semibold">{bids.length}</span>
                   </div>
                   {lowestBid ? (
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Current Lowest:</span>
-                      <span className="font-semibold text-orange-600">
+                      <span className="font-bold text-orange-600">
                         ${lowestBid.amount.toLocaleString()}
                       </span>
                     </div>
                   ) : (
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Current Lowest:</span>
                       <span className="text-gray-500 italic">No bids yet</span>
                     </div>
                   )}
                 </div>
 
-                <p className="text-gray-600 text-xs mb-3 line-clamp-2">
+                <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed">
                   {requirement.description}
                 </p>
 
                 <button
                   onClick={() => setSelectedRequirement(requirement.id)}
                   disabled={status === 'upcoming'}
-                  className={`w-full inline-flex items-center justify-center px-3 py-2 font-medium rounded-lg transition-all text-sm ${
+                  className={`w-full inline-flex items-center justify-center px-4 py-2.5 font-medium rounded-lg transition-all text-sm ${
                     status === 'upcoming'
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
                   }`}
                 >
-                  <TrendingDown className="w-4 h-4 mr-1" />
+                  <TrendingDown className="w-4 h-4 mr-2" />
                   {status === 'upcoming' ? 'Not Started' : 'View & Bid'}
                 </button>
               </div>
