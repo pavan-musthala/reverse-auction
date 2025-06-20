@@ -6,9 +6,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Mock users for demo
 const mockUsers: User[] = [
   { id: '1', email: 'admin@befach.com', name: 'Befach Admin', role: 'admin' },
-  { id: '2', email: 'supplier1@befach.com', name: 'ABC Logistics', role: 'supplier' },
-  { id: '3', email: 'supplier2@befach.com', name: 'XYZ Shipping', role: 'supplier' },
-  { id: '4', email: 'supplier3@befach.com', name: 'Global Transport', role: 'supplier' }
+  { id: '2', email: 'shipper1@befach.com', name: 'Global Logistics', role: 'supplier' },
+  { id: '3', email: 'shipper2@befach.com', name: 'Ocean Express', role: 'supplier' },
+  { id: '4', email: 'shipper3@befach.com', name: 'Swift Cargo', role: 'supplier' },
+  { id: '5', email: 'shipper4@befach.com', name: 'Prime Shipping', role: 'supplier' },
+  { id: '6', email: 'shipper5@befach.com', name: 'Elite Transport', role: 'supplier' },
+  { id: '7', email: 'shipper6@befach.com', name: 'Rapid Freight', role: 'supplier' },
+  { id: '8', email: 'shipper7@befach.com', name: 'Secure Logistics', role: 'supplier' },
+  { id: '9', email: 'shipper8@befach.com', name: 'Dynamic Cargo', role: 'supplier' },
+  { id: '10', email: 'shipper9@befach.com', name: 'Universal Shipping', role: 'supplier' },
+  { id: '11', email: 'shipper10@befach.com', name: 'Apex Logistics', role: 'supplier' }
 ];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -30,7 +37,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Mock authentication - in production, this would be an API call
     const foundUser = mockUsers.find(u => u.email === email && u.role === role);
     
-    if (foundUser && password === 'password') {
+    if (foundUser && password === 'Befach@123') {
       setUser(foundUser);
       localStorage.setItem('befachUser', JSON.stringify(foundUser));
       setLoading(false);

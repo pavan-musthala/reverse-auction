@@ -52,7 +52,7 @@ const AdminDashboard: React.FC = () => {
             >
               {/* Product Image */}
               {requirement.images && requirement.images.length > 0 && (
-                <div className="relative h-48 bg-gray-100">
+                <div className="relative h-40 bg-gray-100">
                   <img
                     src={requirement.images[0]}
                     alt={requirement.productName}
@@ -67,86 +67,76 @@ const AdminDashboard: React.FC = () => {
                 </div>
               )}
 
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center">
-                    <div className="w-12 h-12 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center">
-                      <Package className="w-6 h-6 text-orange-600" />
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center min-w-0 flex-1">
+                    <div className="w-10 h-10 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Package className="w-5 h-5 text-orange-600" />
                     </div>
-                    <div className="ml-3">
-                      <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
+                    <div className="ml-3 min-w-0 flex-1">
+                      <h3 className="text-base font-semibold text-gray-900 truncate">
                         {requirement.productName}
                       </h3>
-                      <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
+                      <p className="text-xs text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 ${getStatusColor(status)}`}>
                     {status}
                   </span>
                 </div>
 
-                {/* Timer Section */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                {/* Compact Timer Section */}
+                <div className="mb-3 p-2 bg-gray-50 rounded-lg">
                   {status === 'upcoming' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        Starts: {new Date(requirement.startTime).toLocaleString()}
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Clock className="w-4 h-4 mr-2" />
-                        Ends: {new Date(requirement.endTime).toLocaleString()}
+                    <div className="text-xs text-gray-600">
+                      <div className="flex items-center mb-1">
+                        <Calendar className="w-3 h-3 mr-1" />
+                        Starts: {new Date(requirement.startTime).toLocaleDateString()}
                       </div>
                     </div>
                   )}
                   {status === 'open' && (
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-green-700">Auction Live</p>
-                      <CountdownTimer endTime={requirement.endTime} className="text-sm" />
+                    <div>
+                      <p className="text-xs font-medium text-green-700 mb-1">Live Auction</p>
+                      <CountdownTimer endTime={requirement.endTime} className="text-xs" />
                     </div>
                   )}
                   {status === 'closed' && (
-                    <div className="text-sm text-red-600 font-medium">
+                    <div className="text-xs text-red-600 font-medium">
                       Auction Ended
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-3 mb-4">
-                  <div className="flex justify-between text-sm">
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-600">MOQ:</span>
                     <span className="font-medium">{requirement.moq.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-600">Total Bids:</span>
                     <span className="font-medium">{bids.length}</span>
                   </div>
                   {lowestBid && (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xs">
                       <span className="text-gray-600">Lowest Bid:</span>
                       <span className="font-semibold text-green-600">
                         ${lowestBid.amount.toLocaleString()}
                       </span>
                     </div>
                   )}
-                  {requirement.images && requirement.images.length > 0 && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Images:</span>
-                      <span className="font-medium">{requirement.images.length}</span>
-                    </div>
-                  )}
                 </div>
 
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                <p className="text-gray-600 text-xs mb-3 line-clamp-2">
                   {requirement.description}
                 </p>
 
                 <button
                   onClick={() => setSelectedRequirement(requirement.id)}
-                  className="w-full inline-flex items-center justify-center px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
+                  className="w-full inline-flex items-center justify-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
                 >
-                  <Eye className="w-4 h-4 mr-2" />
-                  View Details & Bids
+                  <Eye className="w-4 h-4 mr-1" />
+                  View Details
                 </button>
               </div>
             </div>

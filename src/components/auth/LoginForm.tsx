@@ -17,12 +17,8 @@ const LoginForm: React.FC = () => {
     
     const success = await login(formData.email, formData.password, formData.role);
     if (!success) {
-      setError('Invalid credentials. Try: admin@befach.com or supplier1@befach.com with password "password"');
+      setError('Invalid credentials. Please check your email and password.');
     }
-  };
-
-  const handleQuickLogin = (email: string, role: 'admin' | 'supplier') => {
-    setFormData({ email, password: 'password', role });
   };
 
   return (
@@ -69,7 +65,7 @@ const LoginForm: React.FC = () => {
                 }`}
               >
                 <User className="w-5 h-5 mr-2" />
-                Supplier
+                Shipper
               </button>
             </div>
           </div>
@@ -116,24 +112,6 @@ const LoginForm: React.FC = () => {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="mt-8 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-600 mb-4 text-center">Quick Login (Demo):</p>
-          <div className="space-y-2">
-            <button
-              onClick={() => handleQuickLogin('admin@befach.com', 'admin')}
-              className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-            >
-              <span className="font-medium">Admin:</span> admin@befach.com
-            </button>
-            <button
-              onClick={() => handleQuickLogin('supplier1@befach.com', 'supplier')}
-              className="w-full text-left px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-sm"
-            >
-              <span className="font-medium">Supplier:</span> supplier1@befach.com
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
