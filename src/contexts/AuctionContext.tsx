@@ -13,10 +13,24 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     const storedBids = localStorage.getItem('befachBids');
     
     if (storedRequirements) {
-      setRequirements(JSON.parse(storedRequirements));
+      const parsed = JSON.parse(storedRequirements);
+      // Convert date strings back to Date objects
+      const requirementsWithDates = parsed.map((req: any) => ({
+        ...req,
+        createdAt: new Date(req.createdAt),
+        startTime: new Date(req.startTime),
+        endTime: new Date(req.endTime)
+      }));
+      setRequirements(requirementsWithDates);
     }
     if (storedBids) {
-      setBids(JSON.parse(storedBids));
+      const parsed = JSON.parse(storedBids);
+      // Convert date strings back to Date objects
+      const bidsWithDates = parsed.map((bid: any) => ({
+        ...bid,
+        timestamp: new Date(bid.timestamp)
+      }));
+      setBids(bidsWithDates);
     }
   }, []);
 
@@ -30,22 +44,53 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     localStorage.setItem('befachBids', JSON.stringify(bids));
   }, [bids]);
 
+  useEffect(() => {
+    // Update requirement statuses based on current time
+    const updateStatuses = () => {
+      const now = new Date();
+      setRequirements(prev => prev.map(req => {
+        const status = getRequirementStatus(req);
+        return { ...req, status };
+      }));
+    };
+
+    // Update statuses immediately and then every minute
+    updateStatuses();
+    const interval = setInterval(updateStatuses, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const addRequirement = (requirement: Omit<ProductRequirement, 'id' | 'createdAt'>) => {
     const newRequirement: ProductRequirement = {
       ...requirement,
       id: Date.now().toString(),
       createdAt: new Date(),
-      status: 'open'
+      status: getRequirementStatus({
+        ...requirement,
+        id: '',
+        createdAt: new Date()
+      } as ProductRequirement)
     };
     setRequirements(prev => [...prev, newRequirement]);
   };
 
   const addBid = (bid: Omit<Bid, 'id' | 'timestamp'>): boolean => {
+    const requirement = requirements.find(req => req.id === bid.requirementId);
+    if (!requirement) return false;
+
+    // Check if auction is open
+    const status = getRequirementStatus(requirement);
+    if (status !== 'open') return false;
+
     const lowestBid = getLowestBid(bid.requirementId);
     
-    // Validate that new bid is lower than current lowest
-    if (lowestBid && bid.amount >= lowestBid.amount) {
-      return false;
+    // Calculate minimum bid reduction (1% of current lowest bid)
+    let minimumBid = 0;
+    if (lowestBid) {
+      minimumBid = lowestBid.amount * 0.99; // Must be at least 1% lower
+      if (bid.amount >= minimumBid) {
+        return false;
+      }
     }
 
     const newBid: Bid = {
@@ -69,13 +114,38 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     return requirementBids.length > 0 ? requirementBids[0] : null;
   };
 
+  const getRequirementStatus = (requirement: ProductRequirement): 'upcoming' | 'open' | 'closed' => {
+    const now = new Date();
+    if (now < requirement.startTime) return 'upcoming';
+    if (now > requirement.endTime) return 'closed';
+    return 'open';
+  };
+
+  const getTimeRemaining = (endTime: Date) => {
+    const now = new Date();
+    const difference = endTime.getTime() - now.getTime();
+    
+    if (difference <= 0) {
+      return { days: 0, hours: 0, minutes: 0, seconds: 0, isExpired: true };
+    }
+
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+    return { days, hours, minutes, seconds, isExpired: false };
+  };
+
   const value: AuctionContextType = {
     requirements,
     bids,
     addRequirement,
     addBid,
     getRequirementBids,
-    getLowestBid
+    getLowestBid,
+    getRequirementStatus,
+    getTimeRemaining
   };
 
   return (

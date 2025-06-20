@@ -14,7 +14,9 @@ export interface ProductRequirement {
   images: string[];
   createdAt: Date;
   createdBy: string;
-  status: 'open' | 'closed';
+  status: 'open' | 'closed' | 'upcoming';
+  startTime: Date;
+  endTime: Date;
 }
 
 export interface Bid {
@@ -40,4 +42,6 @@ export interface AuctionContextType {
   addBid: (bid: Omit<Bid, 'id' | 'timestamp'>) => boolean;
   getRequirementBids: (requirementId: string) => Bid[];
   getLowestBid: (requirementId: string) => Bid | null;
+  getRequirementStatus: (requirement: ProductRequirement) => 'upcoming' | 'open' | 'closed';
+  getTimeRemaining: (endTime: Date) => { days: number; hours: number; minutes: number; seconds: number; isExpired: boolean };
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, TrendingDown, Clock, User, AlertCircle, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
+import CountdownTimer from '../common/CountdownTimer';
 
 interface BiddingModalProps {
   requirementId: string;
@@ -9,7 +10,7 @@ interface BiddingModalProps {
 }
 
 const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) => {
-  const { requirements, getRequirementBids, getLowestBid, addBid } = useAuction();
+  const { requirements, getRequirementBids, getLowestBid, addBid, getRequirementStatus } = useAuction();
   const { user } = useAuth();
   const [bidAmount, setBidAmount] = useState('');
   const [error, setError] = useState('');
@@ -19,6 +20,7 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
   const requirement = requirements.find(r => r.id === requirementId);
   const bids = getRequirementBids(requirementId);
   const lowestBid = getLowestBid(requirementId);
+  const status = requirement ? getRequirementStatus(requirement) : 'closed';
 
   if (!requirement || !user) return null;
 
@@ -38,6 +40,11 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
     e.preventDefault();
     setError('');
     
+    if (status !== 'open') {
+      setError('Auction is not currently open for bidding');
+      return;
+    }
+
     const amount = parseFloat(bidAmount);
     
     if (isNaN(amount) || amount <= 0) {
@@ -45,9 +52,13 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
       return;
     }
 
-    if (lowestBid && amount >= lowestBid.amount) {
-      setError(`Your bid must be lower than the current lowest bid of $${lowestBid.amount.toLocaleString()}`);
-      return;
+    // Calculate minimum bid (1% reduction from current lowest)
+    if (lowestBid) {
+      const minimumBid = lowestBid.amount * 0.99;
+      if (amount >= minimumBid) {
+        setError(`Your bid must be at least 1% lower than the current lowest bid. Maximum allowed: $${minimumBid.toFixed(2)}`);
+        return;
+      }
     }
 
     const bidSuccess = addBid({
@@ -62,9 +73,18 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
       setBidAmount('');
       setTimeout(() => setSuccess(false), 3000);
     } else {
-      setError('Failed to place bid. Please try again.');
+      setError('Failed to place bid. Please ensure your bid meets the requirements.');
     }
   };
+
+  // Anonymous bid display - only show count and lowest amount
+  const anonymousBids = bids.map((bid, index) => ({
+    id: bid.id,
+    amount: bid.amount,
+    timestamp: bid.timestamp,
+    isLowest: index === 0,
+    rank: index + 1
+  }));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -73,6 +93,11 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
           <div>
             <h2 className="text-2xl font-bold text-gray-900">{requirement.productName}</h2>
             <p className="text-gray-600 mt-1">HS Code: {requirement.hsCode} | MOQ: {requirement.moq.toLocaleString()}</p>
+            {status === 'open' && (
+              <div className="mt-2">
+                <CountdownTimer endTime={requirement.endTime} className="text-sm" />
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -183,57 +208,74 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
               </div>
 
               {/* Place Bid Form */}
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Place Your Bid</h3>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Bid Amount (USD)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={bidAmount}
-                        onChange={(e) => setBidAmount(e.target.value)}
-                        className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-                        placeholder="Enter your bid amount"
-                        required
-                      />
+              {status === 'open' && (
+                <div className="mt-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Place Your Bid</h3>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Bid Amount (USD)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={bidAmount}
+                          onChange={(e) => setBidAmount(e.target.value)}
+                          className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                          placeholder="Enter your bid amount"
+                          required
+                        />
+                      </div>
+                      {lowestBid && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          Your bid must be at least 1% lower than ${lowestBid.amount.toLocaleString()} (max: ${(lowestBid.amount * 0.99).toFixed(2)})
+                        </p>
+                      )}
                     </div>
-                    {lowestBid && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        Your bid must be lower than ${lowestBid.amount.toLocaleString()}
-                      </p>
+
+                    {error && (
+                      <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+                        <p className="text-sm text-red-600">{error}</p>
+                      </div>
                     )}
-                  </div>
 
-                  {error && (
-                    <div className="flex items-center p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
-                      <p className="text-sm text-red-600">{error}</p>
-                    </div>
-                  )}
+                    {success && (
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
+                        <p className="text-sm text-green-600">Bid placed successfully!</p>
+                      </div>
+                    )}
 
-                  {success && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl">
-                      <p className="text-sm text-green-600">Bid placed successfully!</p>
-                    </div>
-                  )}
+                    <button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
+                    >
+                      <TrendingDown className="w-5 h-5 mr-2 inline" />
+                      Place Bid
+                    </button>
+                  </form>
+                </div>
+              )}
 
-                  <button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
-                  >
-                    <TrendingDown className="w-5 h-5 mr-2 inline" />
-                    Place Bid
-                  </button>
-                </form>
-              </div>
+              {status === 'upcoming' && (
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="text-sm text-blue-600 font-medium">Auction hasn't started yet</p>
+                  <p className="text-sm text-blue-600 mt-1">
+                    Starts: {new Date(requirement.startTime).toLocaleString()}
+                  </p>
+                </div>
+              )}
+
+              {status === 'closed' && (
+                <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-600 font-medium">Auction has ended</p>
+                </div>
+              )}
             </div>
 
-            {/* Current Bids */}
+            {/* Anonymous Bids Display */}
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Current Bids ({bids.length})</h3>
@@ -245,18 +287,18 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
               </div>
 
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {bids.length === 0 ? (
+                {anonymousBids.length === 0 ? (
                   <div className="text-center py-8 bg-gray-50 rounded-xl">
                     <TrendingDown className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h4 className="text-lg font-medium text-gray-900 mb-2">No bids yet</h4>
                     <p className="text-gray-600">Be the first to place a bid!</p>
                   </div>
                 ) : (
-                  bids.map((bid, index) => (
+                  anonymousBids.map((bid) => (
                     <div
                       key={bid.id}
                       className={`p-4 rounded-xl border-2 transition-all ${
-                        index === 0
+                        bid.isLowest
                           ? 'border-green-200 bg-green-50'
                           : 'border-gray-200 bg-white'
                       }`}
@@ -264,14 +306,14 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
                       <div className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            index === 0 ? 'bg-green-200' : 'bg-gray-200'
+                            bid.isLowest ? 'bg-green-200' : 'bg-gray-200'
                           }`}>
-                            <User className={`w-5 h-5 ${index === 0 ? 'text-green-700' : 'text-gray-600'}`} />
+                            <User className={`w-5 h-5 ${bid.isLowest ? 'text-green-700' : 'text-gray-600'}`} />
                           </div>
                           <div className="ml-3">
                             <div className="font-semibold text-gray-900 flex items-center">
-                              {bid.supplierName}
-                              {index === 0 && (
+                              Supplier #{bid.rank}
+                              {bid.isLowest && (
                                 <span className="ml-2 px-2 py-1 bg-green-200 text-green-800 text-xs font-medium rounded-full">
                                   Lowest
                                 </span>
@@ -284,7 +326,7 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
                           </div>
                         </div>
                         <div className={`text-xl font-bold ${
-                          index === 0 ? 'text-green-600' : 'text-gray-900'
+                          bid.isLowest ? 'text-green-600' : 'text-gray-900'
                         }`}>
                           ${bid.amount.toLocaleString()}
                         </div>

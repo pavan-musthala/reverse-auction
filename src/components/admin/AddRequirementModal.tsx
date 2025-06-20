@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Package, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -14,10 +14,25 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     productName: '',
     hsCode: '',
     moq: '',
-    description: ''
+    description: '',
+    startTime: '',
+    endTime: ''
   });
   const [images, setImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+
+  // Set default times (start: now + 1 hour, end: now + 1 week)
+  React.useEffect(() => {
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+    const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
+    
+    setFormData(prev => ({
+      ...prev,
+      startTime: startTime.toISOString().slice(0, 16),
+      endTime: endTime.toISOString().slice(0, 16)
+    }));
+  }, []);
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;
@@ -58,13 +73,29 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    const startTime = new Date(formData.startTime);
+    const endTime = new Date(formData.endTime);
+    
+    if (endTime <= startTime) {
+      alert('End time must be after start time');
+      return;
+    }
+
+    if (startTime <= new Date()) {
+      alert('Start time must be in the future');
+      return;
+    }
+    
     addRequirement({
       productName: formData.productName,
       hsCode: formData.hsCode,
       moq: parseInt(formData.moq),
       description: formData.description,
       images: images,
-      createdBy: user?.id || ''
+      createdBy: user?.id || '',
+      startTime,
+      endTime,
+      status: 'upcoming'
     });
 
     onClose();
@@ -72,7 +103,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center">
             <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
@@ -132,6 +163,36 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               min="1"
               required
             />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                <Calendar className="w-4 h-4 mr-2 text-orange-600" />
+                Auction Start Time
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.startTime}
+                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                <Clock className="w-4 h-4 mr-2 text-orange-600" />
+                Auction End Time
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.endTime}
+                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                required
+              />
+            </div>
           </div>
 
           <div>

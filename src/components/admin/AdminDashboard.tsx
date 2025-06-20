@@ -1,13 +1,27 @@
 import React, { useState } from 'react';
-import { Plus, Package, Eye, Image as ImageIcon } from 'lucide-react';
+import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import AddRequirementModal from './AddRequirementModal';
 import RequirementDetailModal from './RequirementDetailModal';
+import CountdownTimer from '../common/CountdownTimer';
 
 const AdminDashboard: React.FC = () => {
-  const { requirements, getRequirementBids, getLowestBid } = useAuction();
+  const { requirements, getRequirementBids, getLowestBid, getRequirementStatus } = useAuction();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-700';
+      case 'open':
+        return 'bg-green-100 text-green-700';
+      case 'closed':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -29,6 +43,7 @@ const AdminDashboard: React.FC = () => {
         {requirements.map((requirement) => {
           const bids = getRequirementBids(requirement.id);
           const lowestBid = getLowestBid(requirement.id);
+          const status = getRequirementStatus(requirement);
           
           return (
             <div
@@ -65,13 +80,36 @@ const AdminDashboard: React.FC = () => {
                       <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    requirement.status === 'open'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {requirement.status}
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                    {status}
                   </span>
+                </div>
+
+                {/* Timer Section */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                  {status === 'upcoming' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Starts: {new Date(requirement.startTime).toLocaleString()}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Ends: {new Date(requirement.endTime).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+                  {status === 'open' && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-green-700">Auction Live</p>
+                      <CountdownTimer endTime={requirement.endTime} className="text-sm" />
+                    </div>
+                  )}
+                  {status === 'closed' && (
+                    <div className="text-sm text-red-600 font-medium">
+                      Auction Ended
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 mb-4">

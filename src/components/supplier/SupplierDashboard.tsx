@@ -1,25 +1,41 @@
 import React, { useState } from 'react';
-import { Package, TrendingDown, Image as ImageIcon } from 'lucide-react';
+import { Package, TrendingDown, Image as ImageIcon, Clock, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import BiddingModal from './BiddingModal';
+import CountdownTimer from '../common/CountdownTimer';
 
 const SupplierDashboard: React.FC = () => {
-  const { requirements, getRequirementBids, getLowestBid } = useAuction();
+  const { requirements, getRequirementBids, getLowestBid, getRequirementStatus } = useAuction();
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
 
-  const openRequirements = requirements.filter(req => req.status === 'open');
+  const availableRequirements = requirements.filter(req => {
+    const status = getRequirementStatus(req);
+    return status === 'open' || status === 'upcoming';
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-700';
+      case 'open':
+        return 'bg-green-100 text-green-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Supplier Dashboard</h1>
-        <p className="text-gray-600 mt-1">Browse open requirements and place competitive bids with Befach International</p>
+        <p className="text-gray-600 mt-1">Browse available requirements and place competitive bids with Befach International</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {openRequirements.map((requirement) => {
+        {availableRequirements.map((requirement) => {
           const bids = getRequirementBids(requirement.id);
           const lowestBid = getLowestBid(requirement.id);
+          const status = getRequirementStatus(requirement);
           
           return (
             <div
@@ -56,9 +72,31 @@ const SupplierDashboard: React.FC = () => {
                       <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                    Open
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+                    {status}
                   </span>
+                </div>
+
+                {/* Timer Section */}
+                <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+                  {status === 'upcoming' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Starts: {new Date(requirement.startTime).toLocaleString()}
+                      </div>
+                      <div className="flex items-center text-sm text-gray-600">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Ends: {new Date(requirement.endTime).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+                  {status === 'open' && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-green-700">Auction Live</p>
+                      <CountdownTimer endTime={requirement.endTime} className="text-sm" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-3 mb-4">
@@ -97,20 +135,25 @@ const SupplierDashboard: React.FC = () => {
 
                 <button
                   onClick={() => setSelectedRequirement(requirement.id)}
-                  className="w-full inline-flex items-center justify-center px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-medium rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
+                  disabled={status === 'upcoming'}
+                  className={`w-full inline-flex items-center justify-center px-4 py-2 font-medium rounded-xl transition-all ${
+                    status === 'upcoming'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
+                  }`}
                 >
                   <TrendingDown className="w-4 h-4 mr-2" />
-                  View & Place Bid
+                  {status === 'upcoming' ? 'Auction Not Started' : 'View & Place Bid'}
                 </button>
               </div>
             </div>
           );
         })}
 
-        {openRequirements.length === 0 && (
+        {availableRequirements.length === 0 && (
           <div className="col-span-full text-center py-12">
             <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No open requirements</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No available requirements</h3>
             <p className="text-gray-600">Check back later for new bidding opportunities from Befach International</p>
           </div>
         )}

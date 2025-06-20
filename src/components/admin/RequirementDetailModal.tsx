@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, TrendingDown, Clock, User, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, TrendingDown, Clock, User, Image as ImageIcon, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
+import CountdownTimer from '../common/CountdownTimer';
 
 interface RequirementDetailModalProps {
   requirementId: string;
@@ -11,11 +12,12 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
   requirementId, 
   onClose 
 }) => {
-  const { requirements, getRequirementBids } = useAuction();
+  const { requirements, getRequirementBids, getRequirementStatus } = useAuction();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   const requirement = requirements.find(r => r.id === requirementId);
   const bids = getRequirementBids(requirementId);
+  const status = requirement ? getRequirementStatus(requirement) : 'closed';
 
   if (!requirement) return null;
 
@@ -31,13 +33,49 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
     }
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-700';
+      case 'open':
+        return 'bg-green-100 text-green-700';
+      case 'closed':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{requirement.productName}</h2>
-            <p className="text-gray-600 mt-1">HS Code: {requirement.hsCode} | MOQ: {requirement.moq.toLocaleString()}</p>
+            <div className="flex items-center mb-2">
+              <h2 className="text-2xl font-bold text-gray-900 mr-3">{requirement.productName}</h2>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(status)}`}>
+                {status}
+              </span>
+            </div>
+            <p className="text-gray-600">HS Code: {requirement.hsCode} | MOQ: {requirement.moq.toLocaleString()}</p>
+            
+            {/* Timer and Status Info */}
+            <div className="mt-3 space-y-2">
+              {status === 'upcoming' && (
+                <div className="flex items-center text-sm text-gray-600">
+                  <Calendar className="w-4 h-4 mr-2" />
+                  Starts: {new Date(requirement.startTime).toLocaleString()}
+                </div>
+              )}
+              {status === 'open' && (
+                <CountdownTimer endTime={requirement.endTime} className="text-sm" />
+              )}
+              {status === 'closed' && (
+                <div className="text-sm text-red-600 font-medium">
+                  Auction ended on {new Date(requirement.endTime).toLocaleString()}
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -121,6 +159,27 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
                 </div>
               )}
 
+              {/* Auction Timeline */}
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Auction Timeline</h3>
+                <div className="bg-gray-50 p-4 rounded-xl space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Start Time:</span>
+                    <span className="font-medium">{new Date(requirement.startTime).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">End Time:</span>
+                    <span className="font-medium">{new Date(requirement.endTime).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Duration:</span>
+                    <span className="font-medium">
+                      {Math.ceil((requirement.endTime.getTime() - requirement.startTime.getTime()) / (1000 * 60 * 60 * 24))} days
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               {/* Product Description */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Product Description</h3>
@@ -146,7 +205,14 @@ const RequirementDetailModal: React.FC<RequirementDetailModalProps> = ({
                 <div className="text-center py-12 bg-gray-50 rounded-xl">
                   <TrendingDown className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <h4 className="text-lg font-medium text-gray-900 mb-2">No bids yet</h4>
-                  <p className="text-gray-600">Suppliers haven't started bidding on this requirement</p>
+                  <p className="text-gray-600">
+                    {status === 'upcoming' 
+                      ? 'Auction hasn\'t started yet' 
+                      : status === 'open' 
+                        ? 'Suppliers haven\'t started bidding on this requirement'
+                        : 'No bids were placed during this auction'
+                    }
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto">
