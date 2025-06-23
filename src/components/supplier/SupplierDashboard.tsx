@@ -1,12 +1,143 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Package, TrendingDown, Image as ImageIcon, Clock, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import BiddingModal from './BiddingModal';
 import CountdownTimer from '../common/CountdownTimer';
 
+const SUPPLIER_MODAL_STATE_KEY = 'supplierDashboardModalState';
+
+interface SupplierModalState {
+  selectedRequirement: string | null;
+  timestamp: number;
+}
+
 const SupplierDashboard: React.FC = () => {
   const { requirements, getRequirementBids, getLowestBid, getRequirementStatus } = useAuction();
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
+  const [isStateLoaded, setIsStateLoaded] = useState(false);
+
+  // Load modal state from localStorage on component mount
+  useEffect(() => {
+    const loadModalState = () => {
+      try {
+        const savedState = localStorage.getItem(SUPPLIER_MODAL_STATE_KEY);
+        if (savedState) {
+          const parsed: SupplierModalState = JSON.parse(savedState);
+          
+          // Check if saved state is not too old (1 hour)
+          const isStateFresh = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+          
+          if (isStateFresh && parsed.selectedRequirement) {
+            // Verify the requirement still exists and is available
+            const requirement = requirements.find(r => r.id === parsed.selectedRequirement);
+            if (requirement) {
+              const status = getRequirementStatus(requirement);
+              if (status === 'open' || status === 'upcoming') {
+                setSelectedRequirement(parsed.selectedRequirement);
+                console.log('Restored supplier modal state from localStorage');
+              }
+            }
+          } else {
+            // Clear old state
+            localStorage.removeItem(SUPPLIER_MODAL_STATE_KEY);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading supplier modal state:', error);
+        localStorage.removeItem(SUPPLIER_MODAL_STATE_KEY);
+      } finally {
+        setIsStateLoaded(true);
+      }
+    };
+
+    // Only load state after requirements are loaded
+    if (requirements.length > 0) {
+      loadModalState();
+    } else {
+      setIsStateLoaded(true);
+    }
+  }, [requirements, getRequirementStatus]);
+
+  // Save modal state to localStorage whenever it changes
+  useEffect(() => {
+    if (!isStateLoaded) return; // Don't save during initial load
+
+    const saveModalState = () => {
+      try {
+        if (selectedRequirement) {
+          const stateToSave: SupplierModalState = {
+            selectedRequirement,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(SUPPLIER_MODAL_STATE_KEY, JSON.stringify(stateToSave));
+          console.log('Supplier modal state saved to localStorage');
+        } else {
+          // Clear state if no modal is open
+          localStorage.removeItem(SUPPLIER_MODAL_STATE_KEY);
+        }
+      } catch (error) {
+        console.error('Error saving supplier modal state:', error);
+      }
+    };
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveModalState, 100);
+    return () => clearTimeout(timeoutId);
+  }, [selectedRequirement, isStateLoaded]);
+
+  // Handle visibility change to maintain modal state
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isStateLoaded) {
+        // When tab becomes visible again, ensure modal state is preserved
+        console.log('Tab became visible, supplier modal state preserved');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isStateLoaded]);
+
+  // Handle page focus to restore modal state if needed
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isStateLoaded) {
+        try {
+          const savedState = localStorage.getItem(SUPPLIER_MODAL_STATE_KEY);
+          if (savedState) {
+            const parsed: SupplierModalState = JSON.parse(savedState);
+            const isStateFresh = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+            
+            if (isStateFresh && parsed.selectedRequirement !== selectedRequirement) {
+              // Verify the requirement still exists and is available
+              const requirement = requirements.find(r => r.id === parsed.selectedRequirement);
+              if (requirement) {
+                const status = getRequirementStatus(requirement);
+                if (status === 'open' || status === 'upcoming') {
+                  setSelectedRequirement(parsed.selectedRequirement);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring supplier modal state on focus:', error);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [selectedRequirement, isStateLoaded, requirements, getRequirementStatus]);
+
+  const handleShowBiddingModal = (requirementId: string) => {
+    setSelectedRequirement(requirementId);
+  };
+
+  const handleCloseBiddingModal = () => {
+    setSelectedRequirement(null);
+    // Clear modal state from localStorage when explicitly closed
+    localStorage.removeItem(SUPPLIER_MODAL_STATE_KEY);
+  };
 
   const availableRequirements = requirements.filter(req => {
     const status = getRequirementStatus(req);
@@ -51,6 +182,17 @@ const SupplierDashboard: React.FC = () => {
     const remainingHours = diffHours % 24;
     return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
   };
+
+  // Don't render until state is loaded to prevent flash
+  if (!isStateLoaded) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -174,7 +316,7 @@ const SupplierDashboard: React.FC = () => {
                 </p>
 
                 <button
-                  onClick={() => setSelectedRequirement(requirement.id)}
+                  onClick={() => handleShowBiddingModal(requirement.id)}
                   disabled={status === 'upcoming'}
                   className={`w-full inline-flex items-center justify-center px-4 py-2.5 font-medium rounded-lg transition-all text-sm ${
                     status === 'upcoming'
@@ -202,7 +344,7 @@ const SupplierDashboard: React.FC = () => {
       {selectedRequirement && (
         <BiddingModal
           requirementId={selectedRequirement}
-          onClose={() => setSelectedRequirement(null)}
+          onClose={handleCloseBiddingModal}
         />
       )}
     </div>

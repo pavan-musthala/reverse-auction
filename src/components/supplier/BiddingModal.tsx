@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, TrendingDown, Clock, User, AlertCircle, Image as ImageIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, TrendingDown, Clock, User, AlertCircle, Image as ImageIcon, ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
 import CountdownTimer from '../common/CountdownTimer';
@@ -9,6 +9,14 @@ interface BiddingModalProps {
   onClose: () => void;
 }
 
+const BIDDING_FORM_STORAGE_KEY = 'biddingFormData';
+
+interface SavedBiddingData {
+  requirementId: string;
+  bidAmount: string;
+  timestamp: number;
+}
+
 const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) => {
   const { requirements, getRequirementBids, getLowestBid, addBid, getRequirementStatus } = useAuction();
   const { user } = useAuth();
@@ -16,11 +24,176 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const requirement = requirements.find(r => r.id === requirementId);
   const bids = getRequirementBids(requirementId);
   const lowestBid = getLowestBid(requirementId);
   const status = requirement ? getRequirementStatus(requirement) : 'closed';
+
+  // Load saved bidding data from localStorage on component mount
+  useEffect(() => {
+    const loadSavedData = () => {
+      try {
+        const savedData = localStorage.getItem(BIDDING_FORM_STORAGE_KEY);
+        if (savedData) {
+          const parsed: SavedBiddingData = JSON.parse(savedData);
+          
+          // Check if saved data is for the same requirement and not too old (1 hour)
+          const isDataFresh = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+          const isSameRequirement = parsed.requirementId === requirementId;
+          
+          if (isDataFresh && isSameRequirement && parsed.bidAmount) {
+            setBidAmount(parsed.bidAmount);
+            setLastSaved(new Date(parsed.timestamp));
+            console.log('Loaded saved bidding data from localStorage');
+          } else {
+            // Clear old or irrelevant data
+            localStorage.removeItem(BIDDING_FORM_STORAGE_KEY);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading saved bidding data:', error);
+        localStorage.removeItem(BIDDING_FORM_STORAGE_KEY);
+      } finally {
+        setIsDataLoaded(true);
+      }
+    };
+
+    loadSavedData();
+  }, [requirementId]);
+
+  // Save bidding data to localStorage whenever it changes (debounced)
+  useEffect(() => {
+    if (!isDataLoaded || !bidAmount.trim()) return; // Don't save empty data
+
+    const saveData = () => {
+      try {
+        const dataToSave: SavedBiddingData = {
+          requirementId,
+          bidAmount,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(BIDDING_FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+        setLastSaved(new Date());
+        console.log('Bidding data auto-saved to localStorage');
+      } catch (error) {
+        console.error('Error saving bidding data:', error);
+      }
+    };
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveData, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [bidAmount, requirementId, isDataLoaded]);
+
+  // Handle visibility change to save data when tab becomes hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isDataLoaded && bidAmount.trim()) {
+        try {
+          const dataToSave: SavedBiddingData = {
+            requirementId,
+            bidAmount,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(BIDDING_FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+          setLastSaved(new Date());
+          console.log('Bidding data saved due to tab visibility change');
+        } catch (error) {
+          console.error('Error saving bidding data on visibility change:', error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [bidAmount, requirementId, isDataLoaded]);
+
+  // Handle beforeunload to save data when page is about to be closed/refreshed
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDataLoaded && bidAmount.trim()) {
+        try {
+          const dataToSave: SavedBiddingData = {
+            requirementId,
+            bidAmount,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(BIDDING_FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+          console.log('Bidding data saved due to page unload');
+          
+          // Show browser confirmation dialog
+          e.preventDefault();
+          e.returnValue = 'You have an unsaved bid. Are you sure you want to leave?';
+          return e.returnValue;
+        } catch (error) {
+          console.error('Error saving bidding data on page unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [bidAmount, requirementId, isDataLoaded]);
+
+  const clearSavedData = () => {
+    try {
+      localStorage.removeItem(BIDDING_FORM_STORAGE_KEY);
+      console.log('Saved bidding data cleared');
+    } catch (error) {
+      console.error('Error clearing saved bidding data:', error);
+    }
+  };
+
+  const manualSave = () => {
+    if (!bidAmount.trim()) return;
+    
+    try {
+      const dataToSave: SavedBiddingData = {
+        requirementId,
+        bidAmount,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(BIDDING_FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+      setLastSaved(new Date());
+      console.log('Manual save completed for bidding data');
+    } catch (error) {
+      console.error('Error during manual save:', error);
+    }
+  };
+
+  const handleClose = () => {
+    if (isSubmitting) {
+      return; // Prevent closing during submission
+    }
+
+    if (bidAmount.trim()) {
+      const shouldSave = window.confirm(
+        'You have an unsaved bid. Do you want to save your progress for later?\n\n' +
+        'Click "OK" to save and continue later, or "Cancel" to discard your bid.'
+      );
+      
+      if (!shouldSave) {
+        clearSavedData();
+      } else {
+        manualSave();
+      }
+    } else {
+      clearSavedData();
+    }
+    
+    onClose();
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && !isSubmitting) {
+      handleClose();
+    }
+  };
 
   if (!requirement || !user) return null;
 
@@ -39,6 +212,8 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (isSubmitting) return;
     
     if (status !== 'open') {
       setError('Auction is not currently open for bidding');
@@ -61,6 +236,8 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
       }
     }
 
+    setIsSubmitting(true);
+
     const bidSuccess = addBid({
       requirementId,
       supplierId: user.id,
@@ -71,10 +248,13 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
     if (bidSuccess) {
       setSuccess(true);
       setBidAmount('');
+      clearSavedData(); // Clear saved data after successful submission
       setTimeout(() => setSuccess(false), 3000);
     } else {
       setError('Failed to place bid. Please ensure your bid meets the requirements.');
     }
+    
+    setIsSubmitting(false);
   };
 
   // Anonymous bid display - only show count and lowest amount
@@ -86,8 +266,25 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
     rank: index + 1
   }));
 
+  // Don't render until data is loaded
+  if (!isDataLoaded) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="text-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading bidding form...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
@@ -99,12 +296,25 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
               </div>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-6 h-6 text-gray-500" />
-          </button>
+          <div className="flex items-center space-x-2">
+            {bidAmount.trim() && (
+              <button
+                onClick={manualSave}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Save bid progress"
+                disabled={isSubmitting}
+              >
+                <Save className="w-4 h-4 text-gray-500" />
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              disabled={isSubmitting}
+            >
+              <X className="w-6 h-6 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
@@ -226,6 +436,7 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
                           className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                           placeholder="Enter your bid amount"
                           required
+                          disabled={isSubmitting}
                         />
                       </div>
                       {lowestBid && (
@@ -250,10 +461,11 @@ const BiddingModal: React.FC<BiddingModalProps> = ({ requirementId, onClose }) =
 
                     <button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
+                      className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+                      disabled={isSubmitting}
                     >
                       <TrendingDown className="w-5 h-5 mr-2 inline" />
-                      Place Bid
+                      {isSubmitting ? 'Placing Bid...' : 'Place Bid'}
                     </button>
                   </form>
                 </div>
