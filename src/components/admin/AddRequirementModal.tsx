@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,6 +6,8 @@ import { useAuth } from '../../contexts/AuthContext';
 interface AddRequirementModalProps {
   onClose: () => void;
 }
+
+const FORM_STORAGE_KEY = 'addRequirementFormData';
 
 const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) => {
   const { addRequirement } = useAuction();
@@ -21,17 +23,53 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   const [images, setImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
 
-  // Set default times (start: now + 1 hour, end: now + 1 week)
-  React.useEffect(() => {
-    const now = new Date();
-    const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-    const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
-    
-    setFormData(prev => ({
-      ...prev,
-      startTime: startTime.toISOString().slice(0, 16),
-      endTime: endTime.toISOString().slice(0, 16)
-    }));
+  // Load saved form data from localStorage on component mount
+  useEffect(() => {
+    const savedData = localStorage.getItem(FORM_STORAGE_KEY);
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        if (parsed.formData) {
+          setFormData(parsed.formData);
+        }
+        if (parsed.images) {
+          setImages(parsed.images);
+        }
+      } catch (error) {
+        console.error('Error loading saved form data:', error);
+      }
+    }
+
+    // Set default times if not loaded from storage
+    if (!savedData || !JSON.parse(savedData).formData?.startTime) {
+      const now = new Date();
+      const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+      const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
+      
+      setFormData(prev => ({
+        ...prev,
+        startTime: startTime.toISOString().slice(0, 16),
+        endTime: endTime.toISOString().slice(0, 16)
+      }));
+    }
+  }, []);
+
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    const dataToSave = {
+      formData,
+      images,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+  }, [formData, images]);
+
+  // Clear saved data when component unmounts (form is closed)
+  useEffect(() => {
+    return () => {
+      // Only clear if the form was successfully submitted
+      // We'll handle this in the handleSubmit function
+    };
   }, []);
 
   const handleFileUpload = (files: FileList | null) => {
@@ -70,6 +108,35 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleFormDataChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const clearSavedData = () => {
+    localStorage.removeItem(FORM_STORAGE_KEY);
+  };
+
+  const handleClose = () => {
+    // Ask user if they want to save their progress
+    const hasData = formData.productName || formData.hsCode || formData.moq || 
+                   formData.description || images.length > 0;
+    
+    if (hasData) {
+      const shouldSave = window.confirm(
+        'You have unsaved changes. Do you want to save your progress for later?\n\n' +
+        'Click "OK" to save and continue later, or "Cancel" to discard changes.'
+      );
+      
+      if (!shouldSave) {
+        clearSavedData();
+      }
+    } else {
+      clearSavedData();
+    }
+    
+    onClose();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -98,6 +165,8 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
       status: 'upcoming'
     });
 
+    // Clear saved data after successful submission
+    clearSavedData();
     onClose();
   };
 
@@ -109,10 +178,13 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
-            <h2 className="ml-3 text-xl font-semibold text-gray-900">Add Product Requirement</h2>
+            <div className="ml-3">
+              <h2 className="text-xl font-semibold text-gray-900">Add Product Requirement</h2>
+              <p className="text-sm text-gray-500 mt-1">Your progress is automatically saved</p>
+            </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
@@ -128,7 +200,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               <input
                 type="text"
                 value={formData.productName}
-                onChange={(e) => setFormData({ ...formData, productName: e.target.value })}
+                onChange={(e) => handleFormDataChange('productName', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 placeholder="Enter product name"
                 required
@@ -142,7 +214,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               <input
                 type="text"
                 value={formData.hsCode}
-                onChange={(e) => setFormData({ ...formData, hsCode: e.target.value })}
+                onChange={(e) => handleFormDataChange('hsCode', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 placeholder="Enter HS code"
                 required
@@ -157,7 +229,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             <input
               type="number"
               value={formData.moq}
-              onChange={(e) => setFormData({ ...formData, moq: e.target.value })}
+              onChange={(e) => handleFormDataChange('moq', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
               placeholder="Enter minimum order quantity"
               min="1"
@@ -174,7 +246,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               <input
                 type="datetime-local"
                 value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                onChange={(e) => handleFormDataChange('startTime', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 required
               />
@@ -188,7 +260,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               <input
                 type="datetime-local"
                 value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                onChange={(e) => handleFormDataChange('endTime', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 required
               />
@@ -201,7 +273,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => handleFormDataChange('description', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors resize-none"
               placeholder="Enter product description"
               rows={4}
@@ -266,7 +338,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
           <div className="flex space-x-3 pt-4 border-t border-gray-200">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
             >
               Cancel
