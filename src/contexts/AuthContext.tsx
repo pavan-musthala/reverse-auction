@@ -1,56 +1,87 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User as SupabaseUser } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { User, AuthContextType } from '../types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Mock users for demo
-const mockUsers: User[] = [
-  { id: '1', email: 'admin@befach.com', name: 'Befach Admin', role: 'admin' },
-  { id: '2', email: 'shipper1@befach.com', name: 'Global Logistics', role: 'supplier' },
-  { id: '3', email: 'shipper2@befach.com', name: 'Ocean Express', role: 'supplier' },
-  { id: '4', email: 'shipper3@befach.com', name: 'Swift Cargo', role: 'supplier' },
-  { id: '5', email: 'shipper4@befach.com', name: 'Prime Shipping', role: 'supplier' },
-  { id: '6', email: 'shipper5@befach.com', name: 'Elite Transport', role: 'supplier' },
-  { id: '7', email: 'shipper6@befach.com', name: 'Rapid Freight', role: 'supplier' },
-  { id: '8', email: 'shipper7@befach.com', name: 'Secure Logistics', role: 'supplier' },
-  { id: '9', email: 'shipper8@befach.com', name: 'Dynamic Cargo', role: 'supplier' },
-  { id: '10', email: 'shipper9@befach.com', name: 'Universal Shipping', role: 'supplier' },
-  { id: '11', email: 'shipper10@befach.com', name: 'Apex Logistics', role: 'supplier' }
-];
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user on app load
-    const storedUser = localStorage.getItem('befachUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(transformSupabaseUser(session.user));
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(transformSupabaseUser(session.user));
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const transformSupabaseUser = (supabaseUser: SupabaseUser): User => {
+    const metadata = supabaseUser.user_metadata || {};
+    return {
+      id: supabaseUser.id,
+      email: supabaseUser.email || '',
+      name: metadata.name || metadata.full_name || supabaseUser.email?.split('@')[0] || 'User',
+      role: metadata.role || 'supplier'
+    };
+  };
 
   const login = async (email: string, password: string, role: 'admin' | 'supplier'): Promise<boolean> => {
     setLoading(true);
     
-    // Mock authentication - in production, this would be an API call
-    const foundUser = mockUsers.find(u => u.email === email && u.role === role);
-    
-    if (foundUser && password === 'Befach@123') {
-      setUser(foundUser);
-      localStorage.setItem('befachUser', JSON.stringify(foundUser));
-      setLoading(false);
-      return true;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        console.error('Login error:', error);
+        setLoading(false);
+        return false;
+      }
+
+      if (data.user) {
+        // Update user metadata with role if needed
+        const currentRole = data.user.user_metadata?.role;
+        if (currentRole !== role) {
+          await supabase.auth.updateUser({
+            data: { role }
+          });
+        }
+        
+        setUser(transformSupabaseUser(data.user));
+        setLoading(false);
+        return true;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
     }
     
     setLoading(false);
     return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('befachUser');
   };
 
   const value: AuthContextType = {

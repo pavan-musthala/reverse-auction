@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { LogIn, User, Shield } from 'lucide-react';
+import { LogIn, User, Shield, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const LoginForm: React.FC = () => {
   const { login, loading } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    name: '',
     role: 'supplier' as 'admin' | 'supplier'
   });
   const [error, setError] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [signUpLoading, setSignUpLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,6 +22,38 @@ const LoginForm: React.FC = () => {
     const success = await login(formData.email, formData.password, formData.role);
     if (!success) {
       setError('Invalid credentials. Please check your email and password.');
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSignUpLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            name: formData.name,
+            role: formData.role
+          }
+        }
+      });
+
+      if (error) {
+        setError(error.message);
+      } else if (data.user) {
+        setError('');
+        setIsSignUp(false);
+        // Auto-login after successful signup
+        await login(formData.email, formData.password, formData.role);
+      }
+    } catch (error) {
+      setError('An error occurred during sign up');
+    } finally {
+      setSignUpLoading(false);
     }
   };
 
@@ -34,10 +70,12 @@ const LoginForm: React.FC = () => {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Befach International</h1>
           <p className="text-orange-600 font-medium mb-4">Making your imports very easy!</p>
-          <p className="text-gray-600">Sign in to your reverse auction platform</p>
+          <p className="text-gray-600">
+            {isSignUp ? 'Create your account' : 'Sign in to your reverse auction platform'}
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={isSignUp ? handleSignUp : handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Role
@@ -70,6 +108,22 @@ const LoginForm: React.FC = () => {
             </div>
           </div>
 
+          {isSignUp && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                placeholder="Enter your full name"
+                required
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Email
@@ -95,6 +149,7 @@ const LoginForm: React.FC = () => {
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
               placeholder="Enter your password"
               required
+              minLength={6}
             />
           </div>
 
@@ -106,11 +161,40 @@ const LoginForm: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || signUpLoading}
             className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading || signUpLoading ? (
+              isSignUp ? 'Creating Account...' : 'Signing in...'
+            ) : (
+              <>
+                {isSignUp ? (
+                  <>
+                    <UserPlus className="w-5 h-5 mr-2 inline" />
+                    Create Account
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-5 h-5 mr-2 inline" />
+                    Sign In
+                  </>
+                )}
+              </>
+            )}
           </button>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+              }}
+              className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
+            >
+              {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+            </button>
+          </div>
         </form>
       </div>
     </div>

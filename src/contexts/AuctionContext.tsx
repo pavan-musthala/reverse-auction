@@ -1,57 +1,150 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 import { ProductRequirement, Bid, AuctionContextType } from '../types';
+import { Database } from '../types/database';
 
 const AuctionContext = createContext<AuctionContextType | undefined>(undefined);
 
 export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [requirements, setRequirements] = useState<ProductRequirement[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Load data from localStorage on mount
-    const storedRequirements = localStorage.getItem('befachRequirements');
-    const storedBids = localStorage.getItem('befachBids');
-    
-    if (storedRequirements) {
-      const parsed = JSON.parse(storedRequirements);
-      // Convert date strings back to Date objects
-      const requirementsWithDates = parsed.map((req: any) => ({
-        ...req,
-        createdAt: new Date(req.createdAt),
-        startTime: new Date(req.startTime),
-        endTime: new Date(req.endTime)
-      }));
-      setRequirements(requirementsWithDates);
+  // Transform database row to ProductRequirement
+  const transformRequirement = (row: Database['public']['Tables']['requirements']['Row']): ProductRequirement => ({
+    id: row.id,
+    productName: row.product_name,
+    hsCode: row.hs_code,
+    moq: row.moq,
+    description: row.description,
+    images: row.images || [],
+    createdAt: new Date(row.created_at),
+    createdBy: row.created_by,
+    status: row.status,
+    startTime: new Date(row.start_time),
+    endTime: new Date(row.end_time)
+  });
+
+  // Transform database row to Bid
+  const transformBid = (row: Database['public']['Tables']['bids']['Row']): Bid => ({
+    id: row.id,
+    requirementId: row.requirement_id,
+    supplierId: row.supplier_id,
+    supplierName: row.supplier_name,
+    amount: row.amount,
+    timestamp: new Date(row.created_at)
+  });
+
+  // Load requirements from Supabase
+  const loadRequirements = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('requirements')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading requirements:', error);
+        return;
+      }
+
+      if (data) {
+        const transformedRequirements = data.map(transformRequirement);
+        setRequirements(transformedRequirements);
+      }
+    } catch (error) {
+      console.error('Error loading requirements:', error);
     }
-    if (storedBids) {
-      const parsed = JSON.parse(storedBids);
-      // Convert date strings back to Date objects
-      const bidsWithDates = parsed.map((bid: any) => ({
-        ...bid,
-        timestamp: new Date(bid.timestamp)
-      }));
-      setBids(bidsWithDates);
+  };
+
+  // Load bids from Supabase
+  const loadBids = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bids')
+        .select('*')
+        .order('amount', { ascending: true });
+
+      if (error) {
+        console.error('Error loading bids:', error);
+        return;
+      }
+
+      if (data) {
+        const transformedBids = data.map(transformBid);
+        setBids(transformedBids);
+      }
+    } catch (error) {
+      console.error('Error loading bids:', error);
     }
-  }, []);
+  };
 
+  // Initial data load
   useEffect(() => {
-    // Save requirements to localStorage whenever they change
-    localStorage.setItem('befachRequirements', JSON.stringify(requirements));
-  }, [requirements]);
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([loadRequirements(), loadBids()]);
+      setLoading(false);
+    };
 
-  useEffect(() => {
-    // Save bids to localStorage whenever they change
-    localStorage.setItem('befachBids', JSON.stringify(bids));
-  }, [bids]);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
+  // Set up real-time subscriptions
   useEffect(() => {
-    // Update requirement statuses based on current time
-    const updateStatuses = () => {
-      const now = new Date();
-      setRequirements(prev => prev.map(req => {
-        const status = getRequirementStatus(req);
-        return { ...req, status };
-      }));
+    if (!user) return;
+
+    // Subscribe to requirements changes
+    const requirementsSubscription = supabase
+      .channel('requirements-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'requirements'
+        },
+        () => {
+          loadRequirements();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to bids changes
+    const bidsSubscription = supabase
+      .channel('bids-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bids'
+        },
+        () => {
+          loadBids();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      requirementsSubscription.unsubscribe();
+      bidsSubscription.unsubscribe();
+    };
+  }, [user]);
+
+  // Update requirement statuses periodically
+  useEffect(() => {
+    const updateStatuses = async () => {
+      try {
+        await supabase.rpc('update_requirement_status');
+        await loadRequirements();
+      } catch (error) {
+        console.error('Error updating statuses:', error);
+      }
     };
 
     // Update statuses immediately and then every minute
@@ -60,53 +153,99 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     return () => clearInterval(interval);
   }, []);
 
-  const addRequirement = (requirement: Omit<ProductRequirement, 'id' | 'createdAt'>) => {
-    const newRequirement: ProductRequirement = {
-      ...requirement,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-      status: getRequirementStatus({
-        ...requirement,
-        id: '',
-        createdAt: new Date()
-      } as ProductRequirement)
-    };
-    setRequirements(prev => [...prev, newRequirement]);
+  const addRequirement = async (requirement: Omit<ProductRequirement, 'id' | 'createdAt'>) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('requirements')
+        .insert({
+          product_name: requirement.productName,
+          hs_code: requirement.hsCode,
+          moq: requirement.moq,
+          description: requirement.description,
+          images: requirement.images,
+          created_by: user.id,
+          start_time: requirement.startTime.toISOString(),
+          end_time: requirement.endTime.toISOString(),
+          status: requirement.status
+        });
+
+      if (error) {
+        console.error('Error adding requirement:', error);
+        throw error;
+      }
+
+      // Data will be updated via real-time subscription
+    } catch (error) {
+      console.error('Error adding requirement:', error);
+      throw error;
+    }
   };
 
-  const deleteRequirement = (requirementId: string) => {
-    setRequirements(prev => prev.filter(req => req.id !== requirementId));
-    // Also remove all bids for this requirement
-    setBids(prev => prev.filter(bid => bid.requirementId !== requirementId));
+  const deleteRequirement = async (requirementId: string) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('requirements')
+        .delete()
+        .eq('id', requirementId)
+        .eq('created_by', user.id);
+
+      if (error) {
+        console.error('Error deleting requirement:', error);
+        throw error;
+      }
+
+      // Data will be updated via real-time subscription
+    } catch (error) {
+      console.error('Error deleting requirement:', error);
+      throw error;
+    }
   };
 
-  const addBid = (bid: Omit<Bid, 'id' | 'timestamp'>): boolean => {
-    const requirement = requirements.find(req => req.id === bid.requirementId);
-    if (!requirement) return false;
+  const addBid = async (bid: Omit<Bid, 'id' | 'timestamp'>): Promise<boolean> => {
+    if (!user) return false;
 
-    // Check if auction is open
-    const status = getRequirementStatus(requirement);
-    if (status !== 'open') return false;
+    try {
+      const requirement = requirements.find(req => req.id === bid.requirementId);
+      if (!requirement) return false;
 
-    const lowestBid = getLowestBid(bid.requirementId);
-    
-    // Calculate minimum bid reduction (1% of current lowest bid)
-    let minimumBid = 0;
-    if (lowestBid) {
-      minimumBid = lowestBid.amount * 0.99; // Must be at least 1% lower
-      if (bid.amount >= minimumBid) {
+      // Check if auction is open
+      const status = getRequirementStatus(requirement);
+      if (status !== 'open') return false;
+
+      const lowestBid = getLowestBid(bid.requirementId);
+      
+      // Calculate minimum bid reduction (1% of current lowest bid)
+      if (lowestBid) {
+        const minimumBid = lowestBid.amount * 0.99;
+        if (bid.amount >= minimumBid) {
+          return false;
+        }
+      }
+
+      const { error } = await supabase
+        .from('bids')
+        .insert({
+          requirement_id: bid.requirementId,
+          supplier_id: user.id,
+          supplier_name: bid.supplierName,
+          amount: bid.amount
+        });
+
+      if (error) {
+        console.error('Error adding bid:', error);
         return false;
       }
+
+      // Data will be updated via real-time subscription
+      return true;
+    } catch (error) {
+      console.error('Error adding bid:', error);
+      return false;
     }
-
-    const newBid: Bid = {
-      ...bid,
-      id: Date.now().toString(),
-      timestamp: new Date()
-    };
-
-    setBids(prev => [...prev, newBid]);
-    return true;
   };
 
   const getRequirementBids = (requirementId: string): Bid[] => {
@@ -154,6 +293,17 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     getRequirementStatus,
     getTimeRemaining
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading auction data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuctionContext.Provider value={value}>
