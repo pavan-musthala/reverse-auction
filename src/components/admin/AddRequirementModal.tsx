@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar, Save, AlertCircle } from 'lucide-react';
+import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar, Save } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -365,18 +365,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
-            <div className="ml-3">
-              <h2 className="text-xl font-semibold text-gray-900">Add Product Requirement</h2>
-              <div className="flex items-center text-sm text-gray-500 mt-1">
-                <Save className="w-3 h-3 mr-1" />
-                <span>Auto-saved</span>
-                {lastSaved && (
-                  <span className="ml-2">
-                    • Last saved: {lastSaved.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            </div>
+            <h2 className="ml-3 text-xl font-semibold text-gray-900">Add Product Requirement</h2>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -396,15 +385,6 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             </button>
           </div>
         </div>
-
-        {hasFormData() && (
-          <div className="px-6 py-2 bg-blue-50 border-b border-blue-200">
-            <div className="flex items-center text-sm text-blue-700">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              <span>Your progress is being saved automatically. You can safely switch tabs or close the browser.</span>
-            </div>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
