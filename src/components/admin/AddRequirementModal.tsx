@@ -360,34 +360,34 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
       onClick={handleBackdropClick}
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center">
-              <Package className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+          <div className="flex items-center min-w-0 flex-1">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <h2 className="ml-3 text-xl font-semibold text-gray-900">Add Product Requirement</h2>
+            <h2 className="ml-2 sm:ml-3 text-lg sm:text-xl font-semibold text-gray-900 truncate">Add Product Requirement</h2>
           </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-shrink-0">
             <button
               onClick={manualSave}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Save progress"
               disabled={isSubmitting}
             >
-              <Save className="w-4 h-4 text-gray-500" />
+              <Save className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
             </button>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
               disabled={isSubmitting}
             >
-              <X className="w-5 h-5 text-gray-500" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Product Name
@@ -396,7 +396,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 type="text"
                 value={formData.productName}
                 onChange={(e) => handleFormDataChange('productName', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
                 placeholder="Enter product name"
                 required
                 disabled={isSubmitting}
@@ -411,7 +411,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 type="text"
                 value={formData.hsCode}
                 onChange={(e) => handleFormDataChange('hsCode', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
                 placeholder="Enter HS code"
                 required
                 disabled={isSubmitting}
@@ -427,7 +427,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               type="number"
               value={formData.moq}
               onChange={(e) => handleFormDataChange('moq', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
               placeholder="Enter minimum order quantity"
               min="1"
               required
@@ -435,7 +435,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
                 <Calendar className="w-4 h-4 mr-2 text-orange-600" />
@@ -445,7 +445,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 type="datetime-local"
                 value={formData.startTime}
                 onChange={(e) => handleFormDataChange('startTime', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
                 required
                 disabled={isSubmitting}
               />
@@ -460,7 +460,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 type="datetime-local"
                 value={formData.endTime}
                 onChange={(e) => handleFormDataChange('endTime', e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
                 required
                 disabled={isSubmitting}
               />
@@ -474,7 +474,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             <textarea
               value={formData.description}
               onChange={(e) => handleFormDataChange('description', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors resize-none"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors resize-none text-sm sm:text-base"
               placeholder="Enter product description"
               rows={4}
               required
@@ -489,7 +489,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             
             {/* File Upload Area */}
             <div
-              className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+              className={`relative border-2 border-dashed rounded-xl p-4 sm:p-6 text-center transition-colors ${
                 dragActive 
                   ? 'border-orange-500 bg-orange-50' 
                   : 'border-gray-300 hover:border-gray-400'
@@ -507,30 +507,30 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 disabled={isSubmitting}
               />
-              <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 mb-2">
+              <Upload className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 mx-auto mb-3 sm:mb-4" />
+              <p className="text-gray-600 mb-2 text-sm sm:text-base">
                 <span className="font-medium text-orange-600">Click to upload</span> or drag and drop
               </p>
-              <p className="text-sm text-gray-500">PNG, JPG, GIF up to 10MB each</p>
+              <p className="text-xs sm:text-sm text-gray-500">PNG, JPG, GIF up to 10MB each</p>
             </div>
 
             {/* Image Preview Grid */}
             {images.length > 0 && (
-              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                 {images.map((image, index) => (
                   <div key={index} className="relative group">
                     <img
                       src={image}
                       alt={`Product ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                      className="w-full h-20 sm:h-24 object-cover rounded-lg border border-gray-200"
                     />
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      className="absolute top-1 sm:top-2 right-1 sm:right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                       disabled={isSubmitting}
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                     </button>
                   </div>
                 ))}
@@ -538,18 +538,18 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             )}
           </div>
 
-          <div className="flex space-x-3 pt-4 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t border-gray-200">
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 sm:py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50 text-sm sm:text-base"
               disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+              className="flex-1 px-4 py-2.5 sm:py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50 text-sm sm:text-base"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Adding...' : 'Add Requirement'}

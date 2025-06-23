@@ -186,7 +186,7 @@ const SupplierDashboard: React.FC = () => {
   // Don't render until state is loaded to prevent flash
   if (!isStateLoaded) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse"></div>
         </div>
@@ -195,13 +195,13 @@ const SupplierDashboard: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Shipper Dashboard</h1>
-        <p className="text-gray-600 mt-1">Browse available requirements and place competitive bids with Befach International</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Shipper Dashboard</h1>
+        <p className="text-gray-600 mt-1 text-sm sm:text-base">Browse available requirements and place competitive bids with Befach International</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {availableRequirements.map((requirement) => {
           const bids = getRequirementBids(requirement.id);
           const lowestBid = getLowestBid(requirement.id);
@@ -214,14 +214,14 @@ const SupplierDashboard: React.FC = () => {
             >
               {/* Product Image */}
               {requirement.images && requirement.images.length > 0 && (
-                <div className="relative h-40 bg-gray-100">
+                <div className="relative h-32 sm:h-40 bg-gray-100">
                   <img
                     src={requirement.images[0]}
                     alt={requirement.productName}
                     className="w-full h-full object-contain bg-white"
                   />
                   {requirement.images.length > 1 && (
-                    <div className="absolute top-3 right-3 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs flex items-center">
+                    <div className="absolute top-2 sm:top-3 right-2 sm:right-3 bg-black bg-opacity-70 text-white px-2 py-1 rounded-full text-xs flex items-center">
                       <ImageIcon className="w-3 h-3 mr-1" />
                       +{requirement.images.length - 1}
                     </div>
@@ -229,33 +229,33 @@ const SupplierDashboard: React.FC = () => {
                 </div>
               )}
 
-              <div className="p-5">
-                <div className="flex items-start justify-between mb-4">
+              <div className="p-4 sm:p-5">
+                <div className="flex items-start justify-between mb-3 sm:mb-4">
                   <div className="flex items-start min-w-0 flex-1">
-                    <div className="w-10 h-10 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Package className="w-5 h-5 text-orange-600" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-orange-100 to-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Package className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
                     </div>
-                    <div className="ml-3 min-w-0 flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">
+                    <div className="ml-2 sm:ml-3 min-w-0 flex-1">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight mb-1">
                         {requirement.productName}
                       </h3>
-                      <p className="text-sm text-gray-500">HS: {requirement.hsCode}</p>
+                      <p className="text-xs sm:text-sm text-gray-500">HS: {requirement.hsCode}</p>
                     </div>
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-3 ${getStatusColor(status)}`}>
+                  <span className={`px-2 sm:px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-2 sm:ml-3 ${getStatusColor(status)}`}>
                     {status}
                   </span>
                 </div>
 
                 {/* Auction Timeline */}
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="space-y-2">
+                <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg">
+                  <div className="space-y-1 sm:space-y-2">
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center text-gray-600">
                         <Calendar className="w-3 h-3 mr-1" />
                         <span>Starts:</span>
                       </div>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 text-right">
                         {formatDateTime(requirement.startTime)}
                       </span>
                     </div>
@@ -264,7 +264,7 @@ const SupplierDashboard: React.FC = () => {
                         <Clock className="w-3 h-3 mr-1" />
                         <span>Ends:</span>
                       </div>
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 text-right">
                         {formatDateTime(requirement.endTime)}
                       </span>
                     </div>
@@ -287,44 +287,44 @@ const SupplierDashboard: React.FC = () => {
                   )}
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm">
+                <div className="space-y-1 sm:space-y-2 mb-3 sm:mb-4">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span className="text-gray-600">MOQ:</span>
                     <span className="font-semibold">{requirement.moq.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span className="text-gray-600">Total Bids:</span>
                     <span className="font-semibold">{bids.length}</span>
                   </div>
                   {lowestBid ? (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xs sm:text-sm">
                       <span className="text-gray-600">Current Lowest:</span>
                       <span className="font-bold text-orange-600">
                         ${lowestBid.amount.toLocaleString()}
                       </span>
                     </div>
                   ) : (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xs sm:text-sm">
                       <span className="text-gray-600">Current Lowest:</span>
                       <span className="text-gray-500 italic">No bids yet</span>
                     </div>
                   )}
                 </div>
 
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-relaxed">
+                <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2 leading-relaxed">
                   {requirement.description}
                 </p>
 
                 <button
                   onClick={() => handleShowBiddingModal(requirement.id)}
                   disabled={status === 'upcoming'}
-                  className={`w-full inline-flex items-center justify-center px-4 py-2.5 font-medium rounded-lg transition-all text-sm ${
+                  className={`w-full inline-flex items-center justify-center px-3 sm:px-4 py-2 sm:py-2.5 font-medium rounded-lg transition-all text-xs sm:text-sm ${
                     status === 'upcoming'
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
                   }`}
                 >
-                  <TrendingDown className="w-4 h-4 mr-2" />
+                  <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
                   {status === 'upcoming' ? 'Not Started' : 'View & Bid'}
                 </button>
               </div>
@@ -333,10 +333,10 @@ const SupplierDashboard: React.FC = () => {
         })}
 
         {availableRequirements.length === 0 && (
-          <div className="col-span-full text-center py-12">
-            <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No available requirements</h3>
-            <p className="text-gray-600">Check back later for new bidding opportunities from Befach International</p>
+          <div className="col-span-full text-center py-8 sm:py-12">
+            <Package className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No available requirements</h3>
+            <p className="text-gray-600 text-sm sm:text-base px-4">Check back later for new bidding opportunities from Befach International</p>
           </div>
         )}
       </div>

@@ -44,30 +44,30 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({ endTime, onExpire, clas
   if (timeRemaining.isExpired) {
     return (
       <div className={`flex items-center text-red-600 ${className}`}>
-        <Clock className="w-4 h-4 mr-1" />
-        <span className="font-medium">Expired</span>
+        <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+        <span className="font-medium text-xs sm:text-sm">Expired</span>
       </div>
     );
   }
 
   return (
     <div className={`flex items-center ${className}`}>
-      <Clock className="w-4 h-4 mr-2 text-orange-600" />
-      <div className="flex space-x-1 text-sm font-mono">
+      <Clock className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-orange-600" />
+      <div className="flex space-x-1 text-xs font-mono">
         {timeRemaining.days > 0 && (
           <>
-            <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+            <span className="bg-orange-100 text-orange-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
               {timeRemaining.days}d
             </span>
           </>
         )}
-        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+        <span className="bg-orange-100 text-orange-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
           {timeRemaining.hours.toString().padStart(2, '0')}h
         </span>
-        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+        <span className="bg-orange-100 text-orange-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
           {timeRemaining.minutes.toString().padStart(2, '0')}m
         </span>
-        <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+        <span className="bg-orange-100 text-orange-800 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded text-xs">
           {timeRemaining.seconds.toString().padStart(2, '0')}s
         </span>
       </div>

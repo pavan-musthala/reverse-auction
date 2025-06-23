@@ -83,24 +83,24 @@ const LoginForm: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-4">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center p-4 sm:p-6">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 mb-3 sm:mb-4">
             <img 
               src="/befach.jpg" 
               alt="Befach International Logo" 
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Befach International</h1>
-          <p className="text-orange-600 font-medium mb-4">Making your imports very easy!</p>
-          <p className="text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Befach International</h1>
+          <p className="text-orange-600 font-medium mb-3 sm:mb-4 text-sm sm:text-base">Making your imports very easy!</p>
+          <p className="text-gray-600 text-sm sm:text-base">
             {isSignUp ? 'Create your account' : 'Sign in to your reverse auction platform'}
           </p>
         </div>
 
-        <form onSubmit={isSignUp ? handleSignUp : handleSubmit} className="space-y-6">
+        <form onSubmit={isSignUp ? handleSignUp : handleSubmit} className="space-y-4 sm:space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Role
@@ -109,25 +109,25 @@ const LoginForm: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, role: 'admin' })}
-                className={`flex-1 flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all ${
+                className={`flex-1 flex items-center justify-center px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 transition-all text-sm sm:text-base ${
                   formData.role === 'admin'
                     ? 'border-orange-500 bg-orange-50 text-orange-700'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <Shield className="w-5 h-5 mr-2" />
+                <Shield className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
                 Admin
               </button>
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, role: 'supplier' })}
-                className={`flex-1 flex items-center justify-center px-4 py-3 rounded-xl border-2 transition-all ${
+                className={`flex-1 flex items-center justify-center px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border-2 transition-all text-sm sm:text-base ${
                   formData.role === 'supplier'
                     ? 'border-orange-500 bg-orange-50 text-orange-700'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <User className="w-5 h-5 mr-2" />
+                <User className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
                 Shipper
               </button>
             </div>
@@ -142,7 +142,7 @@ const LoginForm: React.FC = () => {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
                 placeholder="Enter your full name"
                 required
               />
@@ -157,7 +157,7 @@ const LoginForm: React.FC = () => {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
               placeholder="Enter your email"
               required
             />
@@ -171,7 +171,7 @@ const LoginForm: React.FC = () => {
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors text-sm sm:text-base"
               placeholder="Enter your password"
               required
               minLength={6}
@@ -179,7 +179,7 @@ const LoginForm: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+            <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-xl">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
@@ -187,7 +187,7 @@ const LoginForm: React.FC = () => {
           <button
             type="submit"
             disabled={loading || signUpLoading}
-            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-2.5 sm:py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50 text-sm sm:text-base"
           >
             {loading || signUpLoading ? (
               isSignUp ? 'Creating Account...' : 'Signing in...'
@@ -195,12 +195,12 @@ const LoginForm: React.FC = () => {
               <>
                 {isSignUp ? (
                   <>
-                    <UserPlus className="w-5 h-5 mr-2 inline" />
+                    <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 mr-2 inline" />
                     Create Account
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-5 h-5 mr-2 inline" />
+                    <LogIn className="w-4 h-4 sm:w-5 sm:h-5 mr-2 inline" />
                     Sign In
                   </>
                 )}
@@ -215,7 +215,7 @@ const LoginForm: React.FC = () => {
                 setIsSignUp(!isSignUp);
                 setError('');
               }}
-              className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
+              className="text-orange-600 hover:text-orange-700 font-medium transition-colors text-sm sm:text-base"
             >
               {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
             </button>
