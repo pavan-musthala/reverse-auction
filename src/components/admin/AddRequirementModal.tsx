@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar, Save } from 'lucide-react';
+import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar, Save, AlertCircle } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -39,6 +39,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   const [dragActive, setDragActive] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Function to get default times
   const getDefaultTimes = useCallback(() => {
@@ -119,14 +120,14 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
         };
         localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
         setLastSaved(new Date());
-        console.log('Form data saved to localStorage');
+        console.log('Form data auto-saved to localStorage');
       } catch (error) {
         console.error('Error saving form data:', error);
       }
     };
 
     // Debounce the save operation
-    const timeoutId = setTimeout(saveData, 500);
+    const timeoutId = setTimeout(saveData, 1000);
     return () => clearTimeout(timeoutId);
   }, [formData, images, isDataLoaded]);
 
@@ -155,8 +156,8 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
 
   // Handle beforeunload to save data when page is about to be closed/refreshed
   useEffect(() => {
-    const handleBeforeUnload = () => {
-      if (isDataLoaded) {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDataLoaded && hasFormData()) {
         try {
           const dataToSave: SavedFormData = {
             formData,
@@ -165,6 +166,11 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
           };
           localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
           console.log('Form data saved due to page unload');
+          
+          // Show browser confirmation dialog
+          e.preventDefault();
+          e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+          return e.returnValue;
         } catch (error) {
           console.error('Error saving form data on page unload:', error);
         }
@@ -174,6 +180,19 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [formData, images, isDataLoaded]);
+
+  // Prevent modal from closing when clicking outside if there's unsaved data
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && hasFormData() && !isSubmitting) {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [formData, images, isSubmitting]);
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;
@@ -248,6 +267,10 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   };
 
   const handleClose = () => {
+    if (isSubmitting) {
+      return; // Prevent closing during submission
+    }
+
     if (hasFormData()) {
       const shouldSave = window.confirm(
         'You have unsaved changes. Do you want to save your progress for later?\n\n' +
@@ -266,24 +289,28 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     onClose();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const startTime = new Date(formData.startTime);
-    const endTime = new Date(formData.endTime);
+    if (isSubmitting) return;
     
-    if (endTime <= startTime) {
-      alert('End time must be after start time');
-      return;
-    }
-
-    if (startTime <= new Date()) {
-      alert('Start time must be in the future');
-      return;
-    }
+    setIsSubmitting(true);
     
     try {
-      addRequirement({
+      const startTime = new Date(formData.startTime);
+      const endTime = new Date(formData.endTime);
+      
+      if (endTime <= startTime) {
+        alert('End time must be after start time');
+        return;
+      }
+
+      if (startTime <= new Date()) {
+        alert('Start time must be in the future');
+        return;
+      }
+      
+      await addRequirement({
         productName: formData.productName,
         hsCode: formData.hsCode,
         moq: parseInt(formData.moq),
@@ -301,6 +328,15 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     } catch (error) {
       console.error('Error submitting form:', error);
       alert('Error submitting form. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget && !isSubmitting) {
+      handleClose();
     }
   };
 
@@ -319,7 +355,10 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center">
@@ -344,17 +383,28 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               onClick={manualSave}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               title="Save progress"
+              disabled={isSubmitting}
             >
               <Save className="w-4 h-4 text-gray-500" />
             </button>
             <button
               onClick={handleClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              disabled={isSubmitting}
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
+
+        {hasFormData() && (
+          <div className="px-6 py-2 bg-blue-50 border-b border-blue-200">
+            <div className="flex items-center text-sm text-blue-700">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              <span>Your progress is being saved automatically. You can safely switch tabs or close the browser.</span>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -369,6 +419,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 placeholder="Enter product name"
                 required
+                disabled={isSubmitting}
               />
             </div>
 
@@ -383,6 +434,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 placeholder="Enter HS code"
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -399,6 +451,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               placeholder="Enter minimum order quantity"
               min="1"
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -414,6 +467,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 onChange={(e) => handleFormDataChange('startTime', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 required
+                disabled={isSubmitting}
               />
             </div>
 
@@ -428,6 +482,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 onChange={(e) => handleFormDataChange('endTime', e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -443,6 +498,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
               placeholder="Enter product description"
               rows={4}
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -457,7 +513,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 dragActive 
                   ? 'border-orange-500 bg-orange-50' 
                   : 'border-gray-300 hover:border-gray-400'
-              }`}
+              } ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
@@ -469,6 +525,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                 accept="image/*"
                 onChange={(e) => handleFileUpload(e.target.files)}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={isSubmitting}
               />
               <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 mb-2">
@@ -491,6 +548,7 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
                       type="button"
                       onClick={() => removeImage(index)}
                       className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      disabled={isSubmitting}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -504,15 +562,17 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             <button
               type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
+              className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+              disabled={isSubmitting}
             >
-              Add Requirement
+              {isSubmitting ? 'Adding...' : 'Add Requirement'}
             </button>
           </div>
         </form>

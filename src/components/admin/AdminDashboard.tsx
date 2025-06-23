@@ -1,14 +1,149 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar, Trash2 } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import AddRequirementModal from './AddRequirementModal';
 import RequirementDetailModal from './RequirementDetailModal';
 import CountdownTimer from '../common/CountdownTimer';
 
+const MODAL_STATE_KEY = 'adminDashboardModalState';
+
+interface ModalState {
+  showAddModal: boolean;
+  selectedRequirement: string | null;
+  timestamp: number;
+}
+
 const AdminDashboard: React.FC = () => {
   const { requirements, getRequirementBids, getLowestBid, getRequirementStatus, deleteRequirement } = useAuction();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
+  const [isStateLoaded, setIsStateLoaded] = useState(false);
+
+  // Load modal state from localStorage on component mount
+  useEffect(() => {
+    const loadModalState = () => {
+      try {
+        const savedState = localStorage.getItem(MODAL_STATE_KEY);
+        if (savedState) {
+          const parsed: ModalState = JSON.parse(savedState);
+          
+          // Check if saved state is not too old (1 hour)
+          const isStateFresh = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+          
+          if (isStateFresh) {
+            setShowAddModal(parsed.showAddModal);
+            setSelectedRequirement(parsed.selectedRequirement);
+            console.log('Restored modal state from localStorage');
+          } else {
+            // Clear old state
+            localStorage.removeItem(MODAL_STATE_KEY);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading modal state:', error);
+        localStorage.removeItem(MODAL_STATE_KEY);
+      } finally {
+        setIsStateLoaded(true);
+      }
+    };
+
+    loadModalState();
+  }, []);
+
+  // Save modal state to localStorage whenever it changes
+  useEffect(() => {
+    if (!isStateLoaded) return; // Don't save during initial load
+
+    const saveModalState = () => {
+      try {
+        const stateToSave: ModalState = {
+          showAddModal,
+          selectedRequirement,
+          timestamp: Date.now()
+        };
+        
+        // Only save if there's an active modal
+        if (showAddModal || selectedRequirement) {
+          localStorage.setItem(MODAL_STATE_KEY, JSON.stringify(stateToSave));
+          console.log('Modal state saved to localStorage');
+        } else {
+          // Clear state if no modals are open
+          localStorage.removeItem(MODAL_STATE_KEY);
+        }
+      } catch (error) {
+        console.error('Error saving modal state:', error);
+      }
+    };
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveModalState, 100);
+    return () => clearTimeout(timeoutId);
+  }, [showAddModal, selectedRequirement, isStateLoaded]);
+
+  // Handle visibility change to maintain modal state
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isStateLoaded) {
+        // When tab becomes visible again, ensure modal state is preserved
+        console.log('Tab became visible, modal state preserved');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isStateLoaded]);
+
+  // Handle page focus to restore modal state if needed
+  useEffect(() => {
+    const handleFocus = () => {
+      if (isStateLoaded) {
+        try {
+          const savedState = localStorage.getItem(MODAL_STATE_KEY);
+          if (savedState) {
+            const parsed: ModalState = JSON.parse(savedState);
+            const isStateFresh = Date.now() - parsed.timestamp < 60 * 60 * 1000;
+            
+            if (isStateFresh) {
+              // Restore state if it differs from current state
+              if (parsed.showAddModal !== showAddModal) {
+                setShowAddModal(parsed.showAddModal);
+              }
+              if (parsed.selectedRequirement !== selectedRequirement) {
+                setSelectedRequirement(parsed.selectedRequirement);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error restoring modal state on focus:', error);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [showAddModal, selectedRequirement, isStateLoaded]);
+
+  const handleShowAddModal = () => {
+    setShowAddModal(true);
+    setSelectedRequirement(null);
+  };
+
+  const handleCloseAddModal = () => {
+    setShowAddModal(false);
+    // Clear modal state from localStorage when explicitly closed
+    localStorage.removeItem(MODAL_STATE_KEY);
+  };
+
+  const handleShowRequirementDetail = (requirementId: string) => {
+    setSelectedRequirement(requirementId);
+    setShowAddModal(false);
+  };
+
+  const handleCloseRequirementDetail = () => {
+    setSelectedRequirement(null);
+    // Clear modal state from localStorage when explicitly closed
+    localStorage.removeItem(MODAL_STATE_KEY);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -57,6 +192,17 @@ const AdminDashboard: React.FC = () => {
     return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
   };
 
+  // Don't render until state is loaded to prevent flash
+  if (!isStateLoaded) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
@@ -65,7 +211,7 @@ const AdminDashboard: React.FC = () => {
           <p className="text-gray-600 mt-1">Manage product requirements and monitor bids for Befach International</p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={handleShowAddModal}
           className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all shadow-lg"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -202,7 +348,7 @@ const AdminDashboard: React.FC = () => {
                 </p>
 
                 <button
-                  onClick={() => setSelectedRequirement(requirement.id)}
+                  onClick={() => handleShowRequirementDetail(requirement.id)}
                   className="w-full inline-flex items-center justify-center px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
                 >
                   <Eye className="w-4 h-4 mr-2" />
@@ -219,7 +365,7 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 mb-2">No requirements yet</h3>
             <p className="text-gray-600 mb-4">Start by adding your first product requirement to begin the reverse auction process</p>
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={handleShowAddModal}
               className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all"
             >
               <Plus className="w-5 h-5 mr-2" />
@@ -231,14 +377,14 @@ const AdminDashboard: React.FC = () => {
 
       {showAddModal && (
         <AddRequirementModal
-          onClose={() => setShowAddModal(false)}
+          onClose={handleCloseAddModal}
         />
       )}
 
       {selectedRequirement && (
         <RequirementDetailModal
           requirementId={selectedRequirement}
-          onClose={() => setSelectedRequirement(null)}
+          onClose={handleCloseRequirementDetail}
         />
       )}
     </div>
