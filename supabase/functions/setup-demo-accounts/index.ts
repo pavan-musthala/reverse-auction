@@ -1,114 +1,148 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+/*
+  # Setup Demo Accounts Edge Function
+
+  1. Purpose
+    - Creates demo admin and supplier accounts for testing
+    - Ensures consistent demo data across environments
+    - Handles account creation with proper error handling
+
+  2. Security
+    - Uses service role key for user creation
+    - Implements proper CORS headers
+    - Handles duplicate account scenarios gracefully
+
+  3. Accounts Created
+    - Admin: admin@befach.com / admin123
+    - Supplier: supplier@befach.com / supplier123
+*/
+
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+interface DemoAccount {
+  email: string;
+  password: string;
+  name: string;
+  role: 'admin' | 'supplier';
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+const demoAccounts: DemoAccount[] = [
+  {
+    email: 'admin@befach.com',
+    password: 'admin123',
+    name: 'Admin User',
+    role: 'admin'
+  },
+  {
+    email: 'supplier@befach.com',
+    password: 'supplier123',
+    name: 'Demo Supplier',
+    role: 'supplier'
   }
+];
 
+Deno.serve(async (req: Request) => {
   try {
-    const supabaseClient = createClient(
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 200,
+        headers: corsHeaders,
+      });
+    }
+
+    // Create Supabase client with service role key for admin operations
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    // Demo accounts to create
-    const demoAccounts = [
-      {
-        email: 'admin@befach.com',
-        password: 'Befach@123',
-        user_metadata: {
-          name: 'Admin User',
-          role: 'admin'
-        }
-      },
-      ...Array.from({ length: 10 }, (_, i) => ({
-        email: `shipper${i + 1}@befach.com`,
-        password: 'Befach@123',
-        user_metadata: {
-          name: `Shipper ${i + 1}`,
-          role: 'supplier'
-        }
-      }))
-    ]
-
-    const results = []
+    const results = [];
 
     for (const account of demoAccounts) {
       try {
         // Check if user already exists
-        const { data: existingUser } = await supabaseClient.auth.admin.getUserByEmail(account.email)
+        const { data: existingUser } = await supabaseAdmin.auth.admin.getUserByEmail(account.email);
         
         if (existingUser.user) {
           results.push({
             email: account.email,
             status: 'exists',
             message: 'User already exists'
-          })
-          continue
+          });
+          continue;
         }
 
-        // Create the user
-        const { data, error } = await supabaseClient.auth.admin.createUser({
+        // Create new user
+        const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email: account.email,
           password: account.password,
-          user_metadata: account.user_metadata,
-          email_confirm: true // Auto-confirm email
-        })
+          email_confirm: true,
+          user_metadata: {
+            name: account.name,
+            role: account.role
+          }
+        });
 
-        if (error) {
+        if (createError) {
           results.push({
             email: account.email,
             status: 'error',
-            message: error.message
-          })
-        } else {
-          results.push({
-            email: account.email,
-            status: 'created',
-            message: 'User created successfully'
-          })
+            message: createError.message
+          });
+          continue;
         }
+
+        results.push({
+          email: account.email,
+          status: 'created',
+          message: 'User created successfully',
+          userId: newUser.user?.id
+        });
+
       } catch (error) {
         results.push({
           email: account.email,
           status: 'error',
-          message: error.message
-        })
+          message: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        results: results
+        message: 'Demo accounts setup completed',
+        results
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
+      }
+    );
+
   } catch (error) {
+    console.error('Setup demo accounts error:', error);
+    
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
-      },
-    )
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
+      }
+    );
   }
-})
+});
