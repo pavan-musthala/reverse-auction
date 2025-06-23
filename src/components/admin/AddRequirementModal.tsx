@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { X, Package, Upload, Image as ImageIcon, Trash2, Clock, Calendar, Save } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -9,10 +9,25 @@ interface AddRequirementModalProps {
 
 const FORM_STORAGE_KEY = 'addRequirementFormData';
 
+interface FormData {
+  productName: string;
+  hsCode: string;
+  moq: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+}
+
+interface SavedFormData {
+  formData: FormData;
+  images: string[];
+  timestamp: number;
+}
+
 const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) => {
   const { addRequirement } = useAuction();
   const { user } = useAuth();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     productName: '',
     hsCode: '',
     moq: '',
@@ -22,55 +37,143 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
   });
   const [images, setImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Function to get default times
+  const getDefaultTimes = useCallback(() => {
+    const now = new Date();
+    const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+    const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
+    
+    return {
+      startTime: startTime.toISOString().slice(0, 16),
+      endTime: endTime.toISOString().slice(0, 16)
+    };
+  }, []);
 
   // Load saved form data from localStorage on component mount
   useEffect(() => {
-    const savedData = localStorage.getItem(FORM_STORAGE_KEY);
-    if (savedData) {
+    const loadSavedData = () => {
       try {
-        const parsed = JSON.parse(savedData);
-        if (parsed.formData) {
-          setFormData(parsed.formData);
-        }
-        if (parsed.images) {
-          setImages(parsed.images);
+        const savedData = localStorage.getItem(FORM_STORAGE_KEY);
+        if (savedData) {
+          const parsed: SavedFormData = JSON.parse(savedData);
+          
+          // Check if saved data is not too old (24 hours)
+          const isDataFresh = Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000;
+          
+          if (isDataFresh && parsed.formData) {
+            setFormData(parsed.formData);
+            if (parsed.images) {
+              setImages(parsed.images);
+            }
+            setLastSaved(new Date(parsed.timestamp));
+            console.log('Loaded saved form data from localStorage');
+          } else {
+            // Clear old data
+            localStorage.removeItem(FORM_STORAGE_KEY);
+            const defaultTimes = getDefaultTimes();
+            setFormData(prev => ({
+              ...prev,
+              startTime: defaultTimes.startTime,
+              endTime: defaultTimes.endTime
+            }));
+          }
+        } else {
+          // Set default times for new form
+          const defaultTimes = getDefaultTimes();
+          setFormData(prev => ({
+            ...prev,
+            startTime: defaultTimes.startTime,
+            endTime: defaultTimes.endTime
+          }));
         }
       } catch (error) {
         console.error('Error loading saved form data:', error);
+        localStorage.removeItem(FORM_STORAGE_KEY);
+        const defaultTimes = getDefaultTimes();
+        setFormData(prev => ({
+          ...prev,
+          startTime: defaultTimes.startTime,
+          endTime: defaultTimes.endTime
+        }));
+      } finally {
+        setIsDataLoaded(true);
       }
-    }
-
-    // Set default times if not loaded from storage
-    if (!savedData || !JSON.parse(savedData).formData?.startTime) {
-      const now = new Date();
-      const startTime = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-      const endTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 1 week from now
-      
-      setFormData(prev => ({
-        ...prev,
-        startTime: startTime.toISOString().slice(0, 16),
-        endTime: endTime.toISOString().slice(0, 16)
-      }));
-    }
-  }, []);
-
-  // Save form data to localStorage whenever it changes
-  useEffect(() => {
-    const dataToSave = {
-      formData,
-      images,
-      timestamp: Date.now()
     };
-    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
-  }, [formData, images]);
 
-  // Clear saved data when component unmounts (form is closed)
+    loadSavedData();
+  }, [getDefaultTimes]);
+
+  // Save form data to localStorage whenever it changes (debounced)
   useEffect(() => {
-    return () => {
-      // Only clear if the form was successfully submitted
-      // We'll handle this in the handleSubmit function
+    if (!isDataLoaded) return; // Don't save during initial load
+
+    const saveData = () => {
+      try {
+        const dataToSave: SavedFormData = {
+          formData,
+          images,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+        setLastSaved(new Date());
+        console.log('Form data saved to localStorage');
+      } catch (error) {
+        console.error('Error saving form data:', error);
+      }
     };
-  }, []);
+
+    // Debounce the save operation
+    const timeoutId = setTimeout(saveData, 500);
+    return () => clearTimeout(timeoutId);
+  }, [formData, images, isDataLoaded]);
+
+  // Handle visibility change to save data when tab becomes hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && isDataLoaded) {
+        try {
+          const dataToSave: SavedFormData = {
+            formData,
+            images,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+          setLastSaved(new Date());
+          console.log('Form data saved due to tab visibility change');
+        } catch (error) {
+          console.error('Error saving form data on visibility change:', error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [formData, images, isDataLoaded]);
+
+  // Handle beforeunload to save data when page is about to be closed/refreshed
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isDataLoaded) {
+        try {
+          const dataToSave: SavedFormData = {
+            formData,
+            images,
+            timestamp: Date.now()
+          };
+          localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+          console.log('Form data saved due to page unload');
+        } catch (error) {
+          console.error('Error saving form data on page unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [formData, images, isDataLoaded]);
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;
@@ -108,20 +211,44 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleFormDataChange = (field: string, value: string) => {
+  const handleFormDataChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const clearSavedData = () => {
-    localStorage.removeItem(FORM_STORAGE_KEY);
+    try {
+      localStorage.removeItem(FORM_STORAGE_KEY);
+      console.log('Saved form data cleared');
+    } catch (error) {
+      console.error('Error clearing saved data:', error);
+    }
+  };
+
+  const manualSave = () => {
+    try {
+      const dataToSave: SavedFormData = {
+        formData,
+        images,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+      setLastSaved(new Date());
+      console.log('Manual save completed');
+    } catch (error) {
+      console.error('Error during manual save:', error);
+    }
+  };
+
+  const hasFormData = () => {
+    return formData.productName.trim() || 
+           formData.hsCode.trim() || 
+           formData.moq.trim() || 
+           formData.description.trim() || 
+           images.length > 0;
   };
 
   const handleClose = () => {
-    // Ask user if they want to save their progress
-    const hasData = formData.productName || formData.hsCode || formData.moq || 
-                   formData.description || images.length > 0;
-    
-    if (hasData) {
+    if (hasFormData()) {
       const shouldSave = window.confirm(
         'You have unsaved changes. Do you want to save your progress for later?\n\n' +
         'Click "OK" to save and continue later, or "Cancel" to discard changes.'
@@ -129,6 +256,8 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
       
       if (!shouldSave) {
         clearSavedData();
+      } else {
+        manualSave();
       }
     } else {
       clearSavedData();
@@ -153,22 +282,41 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
       return;
     }
     
-    addRequirement({
-      productName: formData.productName,
-      hsCode: formData.hsCode,
-      moq: parseInt(formData.moq),
-      description: formData.description,
-      images: images,
-      createdBy: user?.id || '',
-      startTime,
-      endTime,
-      status: 'upcoming'
-    });
+    try {
+      addRequirement({
+        productName: formData.productName,
+        hsCode: formData.hsCode,
+        moq: parseInt(formData.moq),
+        description: formData.description,
+        images: images,
+        createdBy: user?.id || '',
+        startTime,
+        endTime,
+        status: 'upcoming'
+      });
 
-    // Clear saved data after successful submission
-    clearSavedData();
-    onClose();
+      // Clear saved data after successful submission
+      clearSavedData();
+      onClose();
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert('Error submitting form. Please try again.');
+    }
   };
+
+  // Don't render until data is loaded
+  if (!isDataLoaded) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="text-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading form...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -180,15 +328,32 @@ const AddRequirementModal: React.FC<AddRequirementModalProps> = ({ onClose }) =>
             </div>
             <div className="ml-3">
               <h2 className="text-xl font-semibold text-gray-900">Add Product Requirement</h2>
-              <p className="text-sm text-gray-500 mt-1">Your progress is automatically saved</p>
+              <div className="flex items-center text-sm text-gray-500 mt-1">
+                <Save className="w-3 h-3 mr-1" />
+                <span>Auto-saved</span>
+                {lastSaved && (
+                  <span className="ml-2">
+                    • Last saved: {lastSaved.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={manualSave}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Save progress"
+            >
+              <Save className="w-4 h-4 text-gray-500" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-120px)]">
