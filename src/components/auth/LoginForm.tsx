@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LogIn, User, Shield, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { LogIn, User, Shield, UserPlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -12,26 +12,47 @@ const LoginForm: React.FC = () => {
     role: 'supplier' as 'admin' | 'supplier'
   });
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [signUpLoading, setSignUpLoading] = useState(false);
-  const [isCreatingAccounts, setIsCreatingAccounts] = useState(false);
+
+  // Initialize demo accounts on component mount
+  useEffect(() => {
+    const initializeDemoAccounts = async () => {
+      try {
+        const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/setup-demo-accounts`;
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          console.log('Demo accounts initialized successfully');
+        }
+      } catch (error) {
+        console.log('Demo accounts may already exist or there was an initialization error');
+      }
+    };
+
+    initializeDemoAccounts();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     
     const success = await login(formData.email, formData.password, formData.role);
     if (!success) {
-      setError('Invalid credentials. Please check your email and password, or create an account if you don\'t have one.');
+      setError('Invalid credentials. Please check your email and password.');
     }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setSignUpLoading(true);
 
     try {
@@ -49,92 +70,15 @@ const LoginForm: React.FC = () => {
       if (error) {
         setError(error.message);
       } else if (data.user) {
-        setSuccess('Account created successfully! You can now sign in.');
+        setError('');
         setIsSignUp(false);
-        // Clear form
-        setFormData({
-          email: '',
-          password: '',
-          name: '',
-          role: 'supplier'
-        });
+        // Auto-login after successful signup
+        await login(formData.email, formData.password, formData.role);
       }
     } catch (error) {
       setError('An error occurred during sign up');
     } finally {
       setSignUpLoading(false);
-    }
-  };
-
-  const createDefaultAccounts = async () => {
-    setIsCreatingAccounts(true);
-    setError('');
-    setSuccess('');
-    
-    const accounts = [
-      { email: 'admin@befach.com', password: 'Befach@123', name: 'Admin User', role: 'admin' },
-      ...Array.from({ length: 10 }, (_, i) => ({
-        email: `shipper${i + 1}@befach.com`,
-        password: 'Befach@123',
-        name: `Shipper ${i + 1}`,
-        role: 'supplier'
-      }))
-    ];
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const account of accounts) {
-      try {
-        const { error } = await supabase.auth.signUp({
-          email: account.email,
-          password: account.password,
-          options: {
-            data: {
-              name: account.name,
-              role: account.role
-            }
-          }
-        });
-
-        if (error) {
-          console.error(`Failed to create ${account.email}:`, error.message);
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      } catch (error) {
-        console.error(`Error creating ${account.email}:`, error);
-        errorCount++;
-      }
-    }
-
-    setIsCreatingAccounts(false);
-    
-    if (successCount > 0) {
-      setSuccess(`Successfully created ${successCount} accounts. You can now sign in with the provided credentials.`);
-    }
-    
-    if (errorCount > 0) {
-      setError(`${errorCount} accounts failed to create (they may already exist).`);
-    }
-  };
-
-  const fillDemoCredentials = (type: 'admin' | 'shipper') => {
-    if (type === 'admin') {
-      setFormData({
-        email: 'admin@befach.com',
-        password: 'Befach@123',
-        name: 'Admin User',
-        role: 'admin'
-      });
-    } else {
-      setFormData({
-        email: 'shipper1@befach.com',
-        password: 'Befach@123',
-        name: 'Shipper 1',
-        role: 'supplier'
-      });
     }
   };
 
@@ -155,36 +99,6 @@ const LoginForm: React.FC = () => {
             {isSignUp ? 'Create your account' : 'Sign in to your reverse auction platform'}
           </p>
         </div>
-
-        {!isSignUp && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-            <h3 className="text-sm font-semibold text-blue-800 mb-2">Demo Credentials</h3>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => fillDemoCredentials('admin')}
-                className="w-full text-left text-xs text-blue-700 hover:text-blue-900 transition-colors"
-              >
-                Admin: admin@befach.com / Befach@123
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemoCredentials('shipper')}
-                className="w-full text-left text-xs text-blue-700 hover:text-blue-900 transition-colors"
-              >
-                Shipper: shipper1@befach.com / Befach@123
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={createDefaultAccounts}
-              disabled={isCreatingAccounts}
-              className="w-full mt-3 bg-blue-600 text-white py-2 px-3 rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {isCreatingAccounts ? 'Creating Accounts...' : 'Create Demo Accounts'}
-            </button>
-          </div>
-        )}
 
         <form onSubmit={isSignUp ? handleSignUp : handleSubmit} className="space-y-6">
           <div>
@@ -265,16 +179,8 @@ const LoginForm: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-start">
-              <AlertCircle className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" />
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
               <p className="text-sm text-red-600">{error}</p>
-            </div>
-          )}
-
-          {success && (
-            <div className="p-4 bg-green-50 border border-green-200 rounded-xl flex items-start">
-              <CheckCircle className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-green-600">{success}</p>
             </div>
           )}
 
@@ -308,7 +214,6 @@ const LoginForm: React.FC = () => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
-                setSuccess('');
               }}
               className="text-orange-600 hover:text-orange-700 font-medium transition-colors"
             >
