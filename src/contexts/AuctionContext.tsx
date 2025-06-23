@@ -20,8 +20,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     moq: row.moq,
     description: row.description,
     images: row.images || [],
-    createdAt: new Date(row.created_at),
-    createdBy: row.created_by,
+    createdAt: new Date(row.created_at || new Date().toISOString()),
+    createdBy: row.created_by || '',
     status: row.status,
     startTime: new Date(row.start_time),
     endTime: new Date(row.end_time)
@@ -33,8 +33,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     requirementId: row.requirement_id,
     supplierId: row.supplier_id,
     supplierName: row.supplier_name,
-    amount: row.amount,
-    timestamp: new Date(row.created_at)
+    amount: Number(row.amount),
+    timestamp: new Date(row.created_at || new Date().toISOString())
   });
 
   // Load requirements from Supabase
@@ -91,6 +91,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     if (user) {
       loadData();
+    } else {
+      setLoading(false);
     }
   }, [user]);
 
@@ -138,13 +140,12 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   // Update requirement statuses periodically
   useEffect(() => {
-    const updateStatuses = async () => {
-      try {
-        await supabase.rpc('update_requirement_status');
-        await loadRequirements();
-      } catch (error) {
-        console.error('Error updating statuses:', error);
-      }
+    const updateStatuses = () => {
+      const now = new Date();
+      setRequirements(prev => prev.map(req => {
+        const status = getRequirementStatus(req);
+        return { ...req, status };
+      }));
     };
 
     // Update statuses immediately and then every minute
@@ -154,10 +155,15 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   }, []);
 
   const addRequirement = async (requirement: Omit<ProductRequirement, 'id' | 'createdAt'>) => {
-    if (!user) return;
+    if (!user) {
+      console.error('User not authenticated');
+      return;
+    }
 
     try {
-      const { error } = await supabase
+      console.log('Adding requirement:', requirement);
+      
+      const { data, error } = await supabase
         .from('requirements')
         .insert({
           product_name: requirement.productName,
@@ -169,14 +175,19 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
           start_time: requirement.startTime.toISOString(),
           end_time: requirement.endTime.toISOString(),
           status: requirement.status
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error adding requirement:', error);
         throw error;
       }
 
-      // Data will be updated via real-time subscription
+      console.log('Requirement added successfully:', data);
+      
+      // Reload requirements to get the latest data
+      await loadRequirements();
     } catch (error) {
       console.error('Error adding requirement:', error);
       throw error;
@@ -198,7 +209,8 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         throw error;
       }
 
-      // Data will be updated via real-time subscription
+      // Reload requirements to get the latest data
+      await loadRequirements();
     } catch (error) {
       console.error('Error deleting requirement:', error);
       throw error;
@@ -206,15 +218,24 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const addBid = async (bid: Omit<Bid, 'id' | 'timestamp'>): Promise<boolean> => {
-    if (!user) return false;
+    if (!user) {
+      console.error('User not authenticated');
+      return false;
+    }
 
     try {
       const requirement = requirements.find(req => req.id === bid.requirementId);
-      if (!requirement) return false;
+      if (!requirement) {
+        console.error('Requirement not found');
+        return false;
+      }
 
       // Check if auction is open
       const status = getRequirementStatus(requirement);
-      if (status !== 'open') return false;
+      if (status !== 'open') {
+        console.error('Auction is not open');
+        return false;
+      }
 
       const lowestBid = getLowestBid(bid.requirementId);
       
@@ -222,25 +243,33 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       if (lowestBid) {
         const minimumBid = lowestBid.amount * 0.99;
         if (bid.amount >= minimumBid) {
+          console.error('Bid amount too high');
           return false;
         }
       }
 
-      const { error } = await supabase
+      console.log('Adding bid:', bid);
+
+      const { data, error } = await supabase
         .from('bids')
         .insert({
           requirement_id: bid.requirementId,
           supplier_id: user.id,
           supplier_name: bid.supplierName,
           amount: bid.amount
-        });
+        })
+        .select()
+        .single();
 
       if (error) {
         console.error('Error adding bid:', error);
         return false;
       }
 
-      // Data will be updated via real-time subscription
+      console.log('Bid added successfully:', data);
+      
+      // Reload bids to get the latest data
+      await loadBids();
       return true;
     } catch (error) {
       console.error('Error adding bid:', error);
