@@ -93,8 +93,8 @@ const LoginForm: React.FC = () => {
               className="w-full h-full object-contain"
             />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Befach International</h1>
-          <p className="text-orange-600 font-medium mb-3 sm:mb-4 text-sm sm:text-base">Making your imports very easy!</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Reverse Auction Tool</h1>
+          <p className="text-orange-600 font-medium mb-3 sm:mb-4 text-sm sm:text-base">Reduce your product cost. Maximize profit</p>
           <p className="text-gray-600 text-sm sm:text-base">
             {isSignUp ? 'Create your account' : 'Sign in to your reverse auction platform'}
           </p>
