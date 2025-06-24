@@ -23,8 +23,8 @@ const Header: React.FC = () => {
                   className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
                 />
                 <div className="ml-2 sm:ml-3 min-w-0">
-                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Befach International</h1>
-                  <p className="text-xs text-orange-600 font-medium hidden sm:block">Making your imports very easy!</p>
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">Reverse Auction Tool</h1>
+                  <p className="text-xs text-orange-600 font-medium hidden sm:block">Reduce your product cost. Maximize profit</p>
                 </div>
               </div>
             </div>
