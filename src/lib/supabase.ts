@@ -14,8 +14,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
   });
 }
 
+// Check for placeholder values
+const hasPlaceholderValues = supabaseUrl?.includes('your_supabase_project_url_here') || 
+                            supabaseAnonKey?.includes('your_supabase_anonymous_key_here');
+
 // Validate URL format
-if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
+if (supabaseUrl && !supabaseUrl.startsWith('https://') && !hasPlaceholderValues) {
   console.error('Invalid Supabase URL format. Must start with https://');
 }
 
@@ -49,14 +53,16 @@ export const supabase = createClient<Database>(
 export const isSupabaseConfigured = () => {
   const isConfigured = !!(supabaseUrl && supabaseAnonKey && 
     supabaseUrl.startsWith('https://') && 
-    supabaseAnonKey.length > 20);
+    supabaseAnonKey.length > 20 &&
+    !hasPlaceholderValues);
   
   if (!isConfigured) {
     console.warn('Supabase is not properly configured:', {
       hasUrl: !!supabaseUrl,
       hasKey: !!supabaseAnonKey,
       urlFormat: supabaseUrl ? supabaseUrl.startsWith('https://') : false,
-      keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0
+      keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0,
+      hasPlaceholders: hasPlaceholderValues
     });
   }
   
@@ -65,6 +71,12 @@ export const isSupabaseConfigured = () => {
 
 // Test connection function with better error handling and retry logic
 export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
+  // Don't attempt connection if using placeholder values
+  if (hasPlaceholderValues) {
+    console.warn('Skipping connection test - placeholder values detected in environment variables');
+    return false;
+  }
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       console.log(`Testing Supabase connection (attempt ${attempt}/${retries})...`);
@@ -108,6 +120,42 @@ export const testSupabaseConnection = async (retries = 3): Promise<boolean> => {
 // Initialize connection test on module load with delay and retry
 if (typeof window !== 'undefined') {
   setTimeout(async () => {
+    if (hasPlaceholderValues) {
+      // Show configuration needed notification
+      const notification = document.createElement('div');
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #f59e0b;
+        color: white;
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        max-width: 350px;
+        cursor: pointer;
+      `;
+      notification.innerHTML = `
+        <div style="display: flex; align-items: flex-start;">
+          <span style="margin-right: 12px; font-size: 18px;">⚙️</span>
+          <div>
+            <div style="font-weight: 600; margin-bottom: 4px;">Supabase Configuration Required</div>
+            <div style="opacity: 0.95; font-size: 13px; line-height: 1.4;">
+              Please update your .env file with your actual Supabase URL and API key to connect to the database.
+            </div>
+            <div style="opacity: 0.8; font-size: 11px; margin-top: 6px;">Click to dismiss</div>
+          </div>
+        </div>
+      `;
+      notification.onclick = () => notification.remove();
+      document.body.appendChild(notification);
+      setTimeout(() => notification.remove(), 15000);
+      return;
+    }
+
     if (isSupabaseConfigured()) {
       const connected = await testSupabaseConnection();
       if (!connected) {
