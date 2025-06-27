@@ -41,13 +41,9 @@ interface EmailRequest {
 
 // Demo email addresses - replace with real ones
 const DEMO_EMAILS = {
-  admin: 'admin@befach.com',
+  admin: 'user@befach.com',
   shippers: [
-    'shipper1@befach.com',
-    'shipper2@befach.com',
-    'shipper3@befach.com',
-    'shipper4@befach.com',
-    'shipper5@befach.com'
+    'dinesh.befach@gmail.com'
   ]
 };
 
