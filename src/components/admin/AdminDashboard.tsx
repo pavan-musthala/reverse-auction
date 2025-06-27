@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar, Trash2 } from 'lucide-react';
+import { Plus, Package, Eye, Image as ImageIcon, Clock, Calendar, Trash2, Settings } from 'lucide-react';
 import { useAuction } from '../../contexts/AuctionContext';
 import AddRequirementModal from './AddRequirementModal';
 import RequirementDetailModal from './RequirementDetailModal';
+import EmailTestPanel from './EmailTestPanel';
 import CountdownTimer from '../common/CountdownTimer';
 
 const MODAL_STATE_KEY = 'adminDashboardModalState';
@@ -10,6 +11,7 @@ const MODAL_STATE_KEY = 'adminDashboardModalState';
 interface ModalState {
   showAddModal: boolean;
   selectedRequirement: string | null;
+  showEmailTest: boolean;
   timestamp: number;
 }
 
@@ -17,6 +19,7 @@ const AdminDashboard: React.FC = () => {
   const { requirements, getRequirementBids, getLowestBid, getRequirementStatus, deleteRequirement } = useAuction();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<string | null>(null);
+  const [showEmailTest, setShowEmailTest] = useState(false);
   const [isStateLoaded, setIsStateLoaded] = useState(false);
 
   // Load modal state from localStorage on component mount
@@ -33,6 +36,7 @@ const AdminDashboard: React.FC = () => {
           if (isStateFresh) {
             setShowAddModal(parsed.showAddModal);
             setSelectedRequirement(parsed.selectedRequirement);
+            setShowEmailTest(parsed.showEmailTest || false);
             console.log('Restored modal state from localStorage');
           } else {
             // Clear old state
@@ -59,11 +63,12 @@ const AdminDashboard: React.FC = () => {
         const stateToSave: ModalState = {
           showAddModal,
           selectedRequirement,
+          showEmailTest,
           timestamp: Date.now()
         };
         
         // Only save if there's an active modal
-        if (showAddModal || selectedRequirement) {
+        if (showAddModal || selectedRequirement || showEmailTest) {
           localStorage.setItem(MODAL_STATE_KEY, JSON.stringify(stateToSave));
           console.log('Modal state saved to localStorage');
         } else {
@@ -78,7 +83,7 @@ const AdminDashboard: React.FC = () => {
     // Debounce the save operation
     const timeoutId = setTimeout(saveModalState, 100);
     return () => clearTimeout(timeoutId);
-  }, [showAddModal, selectedRequirement, isStateLoaded]);
+  }, [showAddModal, selectedRequirement, showEmailTest, isStateLoaded]);
 
   // Handle visibility change to maintain modal state
   useEffect(() => {
@@ -111,6 +116,9 @@ const AdminDashboard: React.FC = () => {
               if (parsed.selectedRequirement !== selectedRequirement) {
                 setSelectedRequirement(parsed.selectedRequirement);
               }
+              if (parsed.showEmailTest !== showEmailTest) {
+                setShowEmailTest(parsed.showEmailTest || false);
+              }
             }
           }
         } catch (error) {
@@ -121,11 +129,12 @@ const AdminDashboard: React.FC = () => {
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [showAddModal, selectedRequirement, isStateLoaded]);
+  }, [showAddModal, selectedRequirement, showEmailTest, isStateLoaded]);
 
   const handleShowAddModal = () => {
     setShowAddModal(true);
     setSelectedRequirement(null);
+    setShowEmailTest(false);
   };
 
   const handleCloseAddModal = () => {
@@ -137,10 +146,23 @@ const AdminDashboard: React.FC = () => {
   const handleShowRequirementDetail = (requirementId: string) => {
     setSelectedRequirement(requirementId);
     setShowAddModal(false);
+    setShowEmailTest(false);
   };
 
   const handleCloseRequirementDetail = () => {
     setSelectedRequirement(null);
+    // Clear modal state from localStorage when explicitly closed
+    localStorage.removeItem(MODAL_STATE_KEY);
+  };
+
+  const handleShowEmailTest = () => {
+    setShowEmailTest(true);
+    setShowAddModal(false);
+    setSelectedRequirement(null);
+  };
+
+  const handleCloseEmailTest = () => {
+    setShowEmailTest(false);
     // Clear modal state from localStorage when explicitly closed
     localStorage.removeItem(MODAL_STATE_KEY);
   };
@@ -210,14 +232,30 @@ const AdminDashboard: React.FC = () => {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage product requirements and monitor bids for Befach International</p>
         </div>
-        <button
-          onClick={handleShowAddModal}
-          className="inline-flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all shadow-lg text-sm sm:text-base"
-        >
-          <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-          Add Requirement
-        </button>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+          <button
+            onClick={handleShowEmailTest}
+            className="inline-flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all text-sm sm:text-base"
+          >
+            <Settings className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+            Email Settings
+          </button>
+          <button
+            onClick={handleShowAddModal}
+            className="inline-flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold rounded-xl hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all shadow-lg text-sm sm:text-base"
+          >
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+            Add Requirement
+          </button>
+        </div>
       </div>
+
+      {/* Email Test Panel */}
+      {showEmailTest && (
+        <div className="mb-6">
+          <EmailTestPanel />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {requirements.map((requirement) => {
