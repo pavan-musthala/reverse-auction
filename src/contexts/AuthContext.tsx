@@ -53,7 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
-        console.error('Login error:', error);
+        console.error('Login error:', error.message);
         setLoading(false);
         return false;
       }
@@ -62,9 +62,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Update user metadata with role if needed
         const currentRole = data.user.user_metadata?.role;
         if (currentRole !== role) {
-          await supabase.auth.updateUser({
+          const { error: updateError } = await supabase.auth.updateUser({
             data: { role }
           });
+          
+          if (updateError) {
+            console.warn('Failed to update user role:', updateError.message);
+          }
         }
         
         setUser(transformSupabaseUser(data.user));
@@ -80,8 +84,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Still clear the user state even if logout fails
+      setUser(null);
+    }
   };
 
   const value: AuthContextType = {

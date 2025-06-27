@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogIn, User, Shield, UserPlus } from 'lucide-react';
+import { LogIn, User, Shield, UserPlus, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -14,6 +14,8 @@ const LoginForm: React.FC = () => {
   const [error, setError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [signUpLoading, setSignUpLoading] = useState(false);
+  const [demoAccountsStatus, setDemoAccountsStatus] = useState<'loading' | 'success' | 'failed' | 'unknown'>('loading');
+  const [showDemoInfo, setShowDemoInfo] = useState(false);
 
   // Initialize demo accounts on component mount
   useEffect(() => {
@@ -30,10 +32,16 @@ const LoginForm: React.FC = () => {
         });
 
         if (response.ok) {
-          console.log('Demo accounts initialized successfully');
+          const result = await response.json();
+          console.log('Demo accounts initialization result:', result);
+          setDemoAccountsStatus('success');
+        } else {
+          console.warn('Demo accounts initialization failed:', response.status);
+          setDemoAccountsStatus('failed');
         }
       } catch (error) {
-        console.log('Demo accounts may already exist or there was an initialization error');
+        console.warn('Demo accounts initialization error:', error);
+        setDemoAccountsStatus('failed');
       }
     };
 
@@ -46,7 +54,12 @@ const LoginForm: React.FC = () => {
     
     const success = await login(formData.email, formData.password, formData.role);
     if (!success) {
-      setError('Invalid credentials. Please check your email and password.');
+      if (formData.email === 'admin@befach.com' || formData.email === 'supplier@befach.com') {
+        setError('Demo accounts may not be set up properly. Please try creating a new account or contact support.');
+        setShowDemoInfo(true);
+      } else {
+        setError('Invalid credentials. Please check your email and password.');
+      }
     }
   };
 
@@ -82,6 +95,25 @@ const LoginForm: React.FC = () => {
     }
   };
 
+  const loadDemoCredentials = (role: 'admin' | 'supplier') => {
+    if (role === 'admin') {
+      setFormData({
+        ...formData,
+        email: 'admin@befach.com',
+        password: 'admin123',
+        role: 'admin'
+      });
+    } else {
+      setFormData({
+        ...formData,
+        email: 'supplier@befach.com',
+        password: 'supplier123',
+        role: 'supplier'
+      });
+    }
+    setShowDemoInfo(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center p-4 sm:p-6">
       <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md">
@@ -99,6 +131,47 @@ const LoginForm: React.FC = () => {
             {isSignUp ? 'Create your account' : 'Sign in to your reverse auction platform'}
           </p>
         </div>
+
+        {/* Demo Account Status */}
+        {demoAccountsStatus === 'failed' && !isSignUp && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-start">
+              <Info className="w-4 h-4 text-amber-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="text-sm text-amber-700">
+                <p className="font-medium mb-1">Demo accounts unavailable</p>
+                <p>Please create a new account to get started.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Demo Credentials Helper */}
+        {!isSignUp && demoAccountsStatus === 'success' && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+            <div className="flex items-start">
+              <Info className="w-4 h-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="text-sm text-blue-700">
+                <p className="font-medium mb-2">Try demo accounts:</p>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => loadDemoCredentials('admin')}
+                    className="block w-full text-left px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 transition-colors"
+                  >
+                    <span className="font-medium">Admin:</span> admin@befach.com / admin123
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => loadDemoCredentials('supplier')}
+                    className="block w-full text-left px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 transition-colors"
+                  >
+                    <span className="font-medium">Shipper:</span> supplier@befach.com / supplier123
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={isSignUp ? handleSignUp : handleSubmit} className="space-y-4 sm:space-y-6">
           <div>
@@ -180,7 +253,26 @@ const LoginForm: React.FC = () => {
 
           {error && (
             <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-xl">
-              <p className="text-sm text-red-600">{error}</p>
+              <div className="flex items-start">
+                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {showDemoInfo && (
+            <div className="p-3 sm:p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <div className="flex items-start">
+                <Info className="w-4 h-4 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                <div className="text-sm text-yellow-700">
+                  <p className="font-medium mb-1">Demo Account Issue</p>
+                  <p className="mb-2">The demo accounts may not be properly configured. You can:</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>Create a new account using the "Sign up" option</li>
+                    <li>Contact support if you need access to demo accounts</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           )}
 
@@ -214,6 +306,7 @@ const LoginForm: React.FC = () => {
               onClick={() => {
                 setIsSignUp(!isSignUp);
                 setError('');
+                setShowDemoInfo(false);
               }}
               className="text-orange-600 hover:text-orange-700 font-medium transition-colors text-sm sm:text-base"
             >
