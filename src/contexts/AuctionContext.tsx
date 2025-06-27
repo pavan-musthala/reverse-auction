@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase, isSupabaseConfigured, testSupabaseConnection } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { ProductRequirement, Bid, AuctionContextType } from '../types';
 import { Database } from '../types/database';
@@ -12,8 +12,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [requirements, setRequirements] = useState<ProductRequirement[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
   // Transform database row to ProductRequirement
   const transformRequirement = (row: Database['public']['Tables']['requirements']['Row']): ProductRequirement => ({
@@ -40,19 +38,9 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     timestamp: new Date(row.created_at || new Date().toISOString())
   });
 
-  // Load requirements from Supabase with enhanced error handling and retry logic
-  const loadRequirements = async (attempt = 1): Promise<void> => {
+  // Load requirements from Supabase
+  const loadRequirements = async () => {
     try {
-      if (!isSupabaseConfigured()) {
-        throw new Error('Supabase is not properly configured');
-      }
-
-      // Test connection first
-      const isConnected = await testSupabaseConnection(1);
-      if (!isConnected) {
-        throw new Error('Database connection failed');
-      }
-
       const { data, error } = await supabase
         .from('requirements')
         .select('*')
@@ -60,71 +48,21 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       if (error) {
         console.error('Error loading requirements:', error);
-        throw new Error(`Database error: ${error.message}`);
+        return;
       }
 
       if (data) {
         const transformedRequirements = data.map(transformRequirement);
         setRequirements(transformedRequirements);
-        setConnectionError(null);
-        setRetryCount(0);
       }
     } catch (error) {
-      console.error(`Error loading requirements (attempt ${attempt}):`, error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setConnectionError(errorMessage);
-      
-      // Retry logic with exponential backoff
-      if (attempt < 3) {
-        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-        console.log(`Retrying in ${delay}ms...`);
-        setTimeout(() => {
-          loadRequirements(attempt + 1);
-        }, delay);
-        return;
-      }
-      
-      setRetryCount(prev => prev + 1);
-      
-      // Show user-friendly error notification
-      if (typeof window !== 'undefined') {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background: #dc2626;
-          color: white;
-          padding: 12px 20px;
-          border-radius: 8px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          z-index: 10000;
-          font-family: system-ui, -apple-system, sans-serif;
-          font-size: 14px;
-          max-width: 300px;
-        `;
-        notification.innerHTML = `
-          <div style="display: flex; align-items: center;">
-            <span style="margin-right: 8px;">❌</span>
-            <div>
-              <div style="font-weight: 600;">Connection Error</div>
-              <div style="opacity: 0.9; font-size: 12px;">Retrying automatically...</div>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(notification);
-        setTimeout(() => notification.remove(), 5000);
-      }
+      console.error('Error loading requirements:', error);
     }
   };
 
-  // Load bids from Supabase with enhanced error handling
-  const loadBids = async (attempt = 1): Promise<void> => {
+  // Load bids from Supabase
+  const loadBids = async () => {
     try {
-      if (!isSupabaseConfigured()) {
-        throw new Error('Supabase is not properly configured');
-      }
-
       const { data, error } = await supabase
         .from('bids')
         .select('*')
@@ -132,12 +70,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       if (error) {
         console.error('Error loading bids:', error);
-        if (attempt < 3) {
-          const delay = Math.pow(2, attempt) * 1000;
-          setTimeout(() => loadBids(attempt + 1), delay);
-          return;
-        }
-        throw error;
+        return;
       }
 
       if (data) {
@@ -145,121 +78,64 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         setBids(transformedBids);
       }
     } catch (error) {
-      console.error(`Error loading bids (attempt ${attempt}):`, error);
+      console.error('Error loading bids:', error);
     }
   };
 
-  // Initial data load with enhanced retry logic
+  // Initial data load
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      setConnectionError(null);
-      
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      if (!isSupabaseConfigured()) {
-        setConnectionError('Database connection not configured');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        await Promise.all([loadRequirements(), loadBids()]);
-      } catch (error) {
-        console.error('Failed to load initial data:', error);
-      } finally {
-        setLoading(false);
-      }
+      await Promise.all([loadRequirements(), loadBids()]);
+      setLoading(false);
     };
 
-    loadData();
+    if (user) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, [user]);
 
-  // Auto-retry mechanism for connection errors
+  // Set up real-time subscriptions
   useEffect(() => {
-    if (connectionError && retryCount < 5) {
-      const retryDelay = Math.min(Math.pow(2, retryCount) * 5000, 30000); // Max 30s
-      console.log(`Auto-retry scheduled in ${retryDelay}ms (attempt ${retryCount + 1}/5)`);
-      
-      const timer = setTimeout(() => {
-        console.log('Auto-retrying data load...');
-        loadRequirements();
-        loadBids();
-      }, retryDelay);
+    if (!user) return;
 
-      return () => clearTimeout(timer);
-    }
-  }, [connectionError, retryCount]);
+    // Subscribe to requirements changes
+    const requirementsSubscription = supabase
+      .channel('requirements-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'requirements'
+        },
+        () => {
+          loadRequirements();
+        }
+      )
+      .subscribe();
 
-  // Set up real-time subscriptions with enhanced error handling
-  useEffect(() => {
-    if (!user || !isSupabaseConfigured()) return;
-
-    let requirementsSubscription: any;
-    let bidsSubscription: any;
-
-    const setupSubscriptions = async () => {
-      try {
-        // Subscribe to requirements changes
-        requirementsSubscription = supabase
-          .channel('requirements-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'requirements'
-            },
-            (payload) => {
-              console.log('Requirements change detected:', payload);
-              loadRequirements();
-            }
-          )
-          .subscribe((status) => {
-            console.log('Requirements subscription status:', status);
-          });
-
-        // Subscribe to bids changes
-        bidsSubscription = supabase
-          .channel('bids-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: '*',
-              schema: 'public',
-              table: 'bids'
-            },
-            (payload) => {
-              console.log('Bids change detected:', payload);
-              loadBids();
-            }
-          )
-          .subscribe((status) => {
-            console.log('Bids subscription status:', status);
-          });
-      } catch (error) {
-        console.error('Failed to set up real-time subscriptions:', error);
-      }
-    };
-
-    // Delay subscription setup to ensure connection is stable
-    const timer = setTimeout(setupSubscriptions, 2000);
+    // Subscribe to bids changes
+    const bidsSubscription = supabase
+      .channel('bids-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bids'
+        },
+        () => {
+          loadBids();
+        }
+      )
+      .subscribe();
 
     return () => {
-      clearTimeout(timer);
-      try {
-        if (requirementsSubscription) {
-          requirementsSubscription.unsubscribe();
-        }
-        if (bidsSubscription) {
-          bidsSubscription.unsubscribe();
-        }
-      } catch (error) {
-        console.error('Error unsubscribing from real-time channels:', error);
-      }
+      requirementsSubscription.unsubscribe();
+      bidsSubscription.unsubscribe();
     };
   }, [user]);
 
@@ -283,10 +159,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!user) {
       console.error('User not authenticated');
       return;
-    }
-
-    if (!isSupabaseConfigured()) {
-      throw new Error('Database connection not configured');
     }
 
     try {
@@ -315,22 +187,18 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       console.log('Requirement added successfully:', data);
       
-      // Send email notification to all shippers (with error handling)
+      // Send email notification to all shippers
       if (data) {
-        try {
-          const newRequirement = transformRequirement(data);
-          await EmailService.notifyNewRequirement({
-            id: newRequirement.id,
-            productName: newRequirement.productName,
-            hsCode: newRequirement.hsCode,
-            moq: newRequirement.moq,
-            description: newRequirement.description,
-            startTime: newRequirement.startTime,
-            endTime: newRequirement.endTime
-          });
-        } catch (emailError) {
-          console.warn('Email notification failed, but requirement was created successfully:', emailError);
-        }
+        const newRequirement = transformRequirement(data);
+        EmailService.notifyNewRequirement({
+          id: newRequirement.id,
+          productName: newRequirement.productName,
+          hsCode: newRequirement.hsCode,
+          moq: newRequirement.moq,
+          description: newRequirement.description,
+          startTime: newRequirement.startTime,
+          endTime: newRequirement.endTime
+        });
       }
       
       // Reload requirements to get the latest data
@@ -342,7 +210,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const deleteRequirement = async (requirementId: string) => {
-    if (!user || !isSupabaseConfigured()) return;
+    if (!user) return;
 
     try {
       const { error } = await supabase
@@ -367,11 +235,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const addBid = async (bid: Omit<Bid, 'id' | 'timestamp'>): Promise<boolean> => {
     if (!user) {
       console.error('User not authenticated');
-      return false;
-    }
-
-    if (!isSupabaseConfigured()) {
-      console.error('Database connection not configured');
       return false;
     }
 
@@ -420,25 +283,21 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       console.log('Bid added successfully:', data);
       
-      // Send email notification to all shippers and admin (with error handling)
+      // Send email notification to all shippers and admin
       if (data) {
-        try {
-          const currentLowestBid = lowestBid ? lowestBid.amount : undefined;
-          await EmailService.notifyNewBid({
-            requirementId: requirement.id,
-            productName: requirement.productName,
-            hsCode: requirement.hsCode,
-            moq: requirement.moq,
-            description: requirement.description,
-            startTime: requirement.startTime,
-            endTime: requirement.endTime,
-            bidAmount: bid.amount,
-            bidderName: bid.supplierName,
-            currentLowestBid
-          });
-        } catch (emailError) {
-          console.warn('Email notification failed, but bid was placed successfully:', emailError);
-        }
+        const currentLowestBid = lowestBid ? lowestBid.amount : undefined;
+        EmailService.notifyNewBid({
+          requirementId: requirement.id,
+          productName: requirement.productName,
+          hsCode: requirement.hsCode,
+          moq: requirement.moq,
+          description: requirement.description,
+          startTime: requirement.startTime,
+          endTime: requirement.endTime,
+          bidAmount: bid.amount,
+          bidderName: bid.supplierName,
+          currentLowestBid
+        });
       }
       
       // Reload bids to get the latest data
@@ -502,38 +361,6 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         <div className="text-center">
           <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse mx-auto mb-4"></div>
           <p className="text-gray-600">Loading auction data...</p>
-          {connectionError && (
-            <p className="text-red-600 text-sm mt-2">Connection issue: {connectionError}</p>
-          )}
-          {retryCount > 0 && (
-            <p className="text-orange-600 text-sm mt-1">Retry attempt: {retryCount}/5</p>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (connectionError && requirements.length === 0 && retryCount >= 5) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-red-600 text-2xl">❌</span>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h2>
-          <p className="text-gray-600 mb-4">{connectionError}</p>
-          <p className="text-sm text-gray-500 mb-4">Failed after {retryCount} attempts</p>
-          <button
-            onClick={() => {
-              setRetryCount(0);
-              setConnectionError(null);
-              loadRequirements();
-              loadBids();
-            }}
-            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          >
-            Retry Connection
-          </button>
         </div>
       </div>
     );
