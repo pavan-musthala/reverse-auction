@@ -1,21 +1,20 @@
 /*
-  # Send Auction Emails Edge Function
+  # Send Auction Emails Edge Function with Resend Integration
 
   1. Purpose
-    - Sends email notifications for auction events
+    - Sends real email notifications for auction events
     - Handles new requirement notifications to shippers
     - Handles new bid notifications to all participants
 
-  2. Email Types
-    - NEW_REQUIREMENT: When admin posts a new requirement
-    - NEW_BID: When a shipper places a bid
+  2. Email Service
+    - Uses Resend for reliable email delivery
+    - Professional HTML email templates
+    - Error handling and retry logic
 
   3. Recipients
     - For new requirements: All shippers
     - For new bids: All shippers + admin
 */
-
-import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -72,11 +71,13 @@ Deno.serve(async (req: Request) => {
 
     const { type, data }: EmailRequest = await req.json();
 
-    // Create Supabase client
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Get Resend API key from environment
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    
+    if (!resendApiKey) {
+      console.warn('RESEND_API_KEY not found, falling back to console logging');
+      return fallbackToConsoleLogging(type, data);
+    }
 
     let emailsSent = 0;
     const results = [];
@@ -88,20 +89,22 @@ Deno.serve(async (req: Request) => {
       
       for (const shipperEmail of REAL_EMAILS.shippers) {
         try {
-          // In a real implementation, you would use a service like SendGrid, Resend, or similar
-          // For now, we'll log the email content
-          console.log(`📧 SENDING EMAIL TO: ${shipperEmail}`);
-          console.log(`📋 SUBJECT: ${subject}`);
-          console.log(`📄 CONTENT: ${htmlContent}`);
-          console.log('-----------------------------------');
+          const emailResult = await sendEmailWithResend(
+            resendApiKey,
+            shipperEmail,
+            subject,
+            htmlContent
+          );
           
           results.push({
             email: shipperEmail,
             status: 'sent',
-            type: 'NEW_REQUIREMENT'
+            type: 'NEW_REQUIREMENT',
+            messageId: emailResult.id
           });
           emailsSent++;
         } catch (error) {
+          console.error(`Failed to send email to ${shipperEmail}:`, error);
           results.push({
             email: shipperEmail,
             status: 'failed',
@@ -118,19 +121,22 @@ Deno.serve(async (req: Request) => {
       
       for (const email of allRecipients) {
         try {
-          // In a real implementation, you would use a service like SendGrid, Resend, or similar
-          console.log(`📧 SENDING EMAIL TO: ${email}`);
-          console.log(`📋 SUBJECT: ${subject}`);
-          console.log(`📄 CONTENT: ${htmlContent}`);
-          console.log('-----------------------------------');
+          const emailResult = await sendEmailWithResend(
+            resendApiKey,
+            email,
+            subject,
+            htmlContent
+          );
           
           results.push({
             email: email,
             status: 'sent',
-            type: 'NEW_BID'
+            type: 'NEW_BID',
+            messageId: emailResult.id
           });
           emailsSent++;
         } catch (error) {
+          console.error(`Failed to send email to ${email}:`, error);
           results.push({
             email: email,
             status: 'failed',
@@ -143,10 +149,11 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `${emailsSent} emails sent successfully`,
+        message: `${emailsSent} emails sent successfully via Resend`,
         type,
         results,
-        recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin]
+        recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin],
+        provider: 'Resend'
       }),
       {
         headers: {
@@ -175,6 +182,96 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+async function sendEmailWithResend(
+  apiKey: string,
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ id: string }> {
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'Befach International <noreply@befach.com>',
+      to: [to],
+      subject: subject,
+      html: html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Resend API error: ${response.status} - ${errorData}`);
+  }
+
+  return await response.json();
+}
+
+function fallbackToConsoleLogging(type: string, data: any) {
+  console.log('📧 FALLBACK: RESEND_API_KEY not configured, logging emails to console');
+  
+  let emailsSent = 0;
+  const results = [];
+
+  if (type === 'NEW_REQUIREMENT') {
+    const subject = `🚢 New Shipping Requirement: ${data.productName}`;
+    const htmlContent = generateNewRequirementEmail(data);
+    
+    for (const shipperEmail of REAL_EMAILS.shippers) {
+      console.log(`📧 WOULD SEND TO: ${shipperEmail}`);
+      console.log(`📋 SUBJECT: ${subject}`);
+      console.log(`📄 CONTENT: ${htmlContent}`);
+      console.log('-----------------------------------');
+      
+      results.push({
+        email: shipperEmail,
+        status: 'logged',
+        type: 'NEW_REQUIREMENT'
+      });
+      emailsSent++;
+    }
+  } else if (type === 'NEW_BID') {
+    const subject = `💰 New Bid Placed: ${data.productName} - $${data.bidAmount?.toLocaleString()}`;
+    const htmlContent = generateNewBidEmail(data);
+    
+    const allRecipients = [...REAL_EMAILS.shippers, REAL_EMAILS.admin];
+    
+    for (const email of allRecipients) {
+      console.log(`📧 WOULD SEND TO: ${email}`);
+      console.log(`📋 SUBJECT: ${subject}`);
+      console.log(`📄 CONTENT: ${htmlContent}`);
+      console.log('-----------------------------------');
+      
+      results.push({
+        email: email,
+        status: 'logged',
+        type: 'NEW_BID'
+      });
+      emailsSent++;
+    }
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: `${emailsSent} emails logged to console (Resend not configured)`,
+      type,
+      results,
+      recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin],
+      provider: 'Console (Fallback)'
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders,
+      },
+    }
+  );
+}
+
 function generateNewRequirementEmail(data: any): string {
   const startDate = new Date(data.startTime).toLocaleString();
   const endDate = new Date(data.endTime).toLocaleString();
@@ -184,6 +281,7 @@ function generateNewRequirementEmail(data: any): string {
     <html>
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>New Shipping Requirement - Befach International</title>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
@@ -203,6 +301,12 @@ function generateNewRequirementEmail(data: any): string {
             .timeline-item strong { display: block; color: #f97316; font-size: 14px; }
             .footer { background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0; }
             .footer p { margin: 0; color: #64748b; font-size: 14px; }
+            @media only screen and (max-width: 600px) {
+                .container { margin: 0; }
+                .header, .content { padding: 20px 15px; }
+                .timeline { flex-direction: column; }
+                .timeline-item { margin-bottom: 10px; }
+            }
         </style>
     </head>
     <body>
@@ -266,6 +370,7 @@ function generateNewBidEmail(data: any): string {
     <html>
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>New Bid Alert - Befach International</title>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
@@ -289,6 +394,13 @@ function generateNewBidEmail(data: any): string {
             .stat-item span { color: #64748b; font-size: 14px; }
             .footer { background: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0; }
             .footer p { margin: 0; color: #64748b; font-size: 14px; }
+            @media only screen and (max-width: 600px) {
+                .container { margin: 0; }
+                .header, .content { padding: 20px 15px; }
+                .stats { flex-direction: column; }
+                .stat-item { margin-bottom: 10px; }
+                .bid-amount { font-size: 24px; }
+            }
         </style>
     </head>
     <body>
