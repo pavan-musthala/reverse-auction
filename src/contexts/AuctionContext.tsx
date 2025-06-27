@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { ProductRequirement, Bid, AuctionContextType } from '../types';
 import { Database } from '../types/database';
+import { EmailService } from '../lib/emailService';
 
 const AuctionContext = createContext<AuctionContextType | undefined>(undefined);
 
@@ -186,6 +187,20 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       console.log('Requirement added successfully:', data);
       
+      // Send email notification to all shippers
+      if (data) {
+        const newRequirement = transformRequirement(data);
+        EmailService.notifyNewRequirement({
+          id: newRequirement.id,
+          productName: newRequirement.productName,
+          hsCode: newRequirement.hsCode,
+          moq: newRequirement.moq,
+          description: newRequirement.description,
+          startTime: newRequirement.startTime,
+          endTime: newRequirement.endTime
+        });
+      }
+      
       // Reload requirements to get the latest data
       await loadRequirements();
     } catch (error) {
@@ -267,6 +282,23 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
       }
 
       console.log('Bid added successfully:', data);
+      
+      // Send email notification to all shippers and admin
+      if (data) {
+        const currentLowestBid = lowestBid ? lowestBid.amount : undefined;
+        EmailService.notifyNewBid({
+          requirementId: requirement.id,
+          productName: requirement.productName,
+          hsCode: requirement.hsCode,
+          moq: requirement.moq,
+          description: requirement.description,
+          startTime: requirement.startTime,
+          endTime: requirement.endTime,
+          bidAmount: bid.amount,
+          bidderName: bid.supplierName,
+          currentLowestBid
+        });
+      }
       
       // Reload bids to get the latest data
       await loadBids();
