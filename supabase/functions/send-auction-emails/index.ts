@@ -1,5 +1,5 @@
 /*
-  # Send Auction Emails Edge Function with Resend Integration
+  # Send Auction Emails Edge Function with Enhanced Resend Integration
 
   1. Purpose
     - Sends real email notifications for auction events
@@ -9,7 +9,7 @@
   2. Email Service
     - Uses Resend for reliable email delivery
     - Professional HTML email templates
-    - Error handling and retry logic
+    - Enhanced error handling and retry logic
 
   3. Recipients
     - For new requirements: All shippers
@@ -74,8 +74,14 @@ Deno.serve(async (req: Request) => {
     // Get Resend API key from environment
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
     
-    if (!resendApiKey) {
-      console.warn('RESEND_API_KEY not found, falling back to console logging');
+    console.log('🔑 Checking Resend API key:', {
+      hasKey: !!resendApiKey,
+      keyLength: resendApiKey ? resendApiKey.length : 0,
+      keyPrefix: resendApiKey ? resendApiKey.substring(0, 5) : 'none'
+    });
+    
+    if (!resendApiKey || resendApiKey.length < 10) {
+      console.warn('RESEND_API_KEY not found or invalid, falling back to console logging');
       return fallbackToConsoleLogging(type, data);
     }
 
@@ -89,12 +95,15 @@ Deno.serve(async (req: Request) => {
       
       for (const shipperEmail of REAL_EMAILS.shippers) {
         try {
+          console.log(`📧 Sending email to ${shipperEmail}...`);
           const emailResult = await sendEmailWithResend(
             resendApiKey,
             shipperEmail,
             subject,
             htmlContent
           );
+          
+          console.log(`✅ Email sent successfully to ${shipperEmail}:`, emailResult);
           
           results.push({
             email: shipperEmail,
@@ -104,7 +113,7 @@ Deno.serve(async (req: Request) => {
           });
           emailsSent++;
         } catch (error) {
-          console.error(`Failed to send email to ${shipperEmail}:`, error);
+          console.error(`❌ Failed to send email to ${shipperEmail}:`, error);
           results.push({
             email: shipperEmail,
             status: 'failed',
@@ -121,12 +130,15 @@ Deno.serve(async (req: Request) => {
       
       for (const email of allRecipients) {
         try {
+          console.log(`📧 Sending email to ${email}...`);
           const emailResult = await sendEmailWithResend(
             resendApiKey,
             email,
             subject,
             htmlContent
           );
+          
+          console.log(`✅ Email sent successfully to ${email}:`, emailResult);
           
           results.push({
             email: email,
@@ -136,7 +148,7 @@ Deno.serve(async (req: Request) => {
           });
           emailsSent++;
         } catch (error) {
-          console.error(`Failed to send email to ${email}:`, error);
+          console.error(`❌ Failed to send email to ${email}:`, error);
           results.push({
             email: email,
             status: 'failed',
@@ -146,15 +158,21 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const response = {
+      success: true,
+      message: `${emailsSent} emails sent successfully via Resend`,
+      type,
+      results,
+      recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin],
+      provider: 'Resend',
+      totalAttempted: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers.length : [...REAL_EMAILS.shippers, REAL_EMAILS.admin].length,
+      totalSent: emailsSent
+    };
+
+    console.log('📊 Final email result:', response);
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: `${emailsSent} emails sent successfully via Resend`,
-        type,
-        results,
-        recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin],
-        provider: 'Resend'
-      }),
+      JSON.stringify(response),
       {
         headers: {
           'Content-Type': 'application/json',
@@ -164,12 +182,13 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error('Send auction emails error:', error);
+    console.error('💥 Send auction emails error:', error);
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        provider: 'Resend (Error)'
       }),
       {
         status: 500,
@@ -188,6 +207,8 @@ async function sendEmailWithResend(
   subject: string,
   html: string
 ): Promise<{ id: string }> {
+  console.log(`🚀 Calling Resend API for ${to}...`);
+  
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -202,12 +223,17 @@ async function sendEmailWithResend(
     }),
   });
 
+  console.log(`📡 Resend API response status: ${response.status}`);
+
   if (!response.ok) {
     const errorData = await response.text();
+    console.error(`❌ Resend API error: ${response.status} - ${errorData}`);
     throw new Error(`Resend API error: ${response.status} - ${errorData}`);
   }
 
-  return await response.json();
+  const result = await response.json();
+  console.log(`✅ Resend API success:`, result);
+  return result;
 }
 
 function fallbackToConsoleLogging(type: string, data: any) {
@@ -223,7 +249,7 @@ function fallbackToConsoleLogging(type: string, data: any) {
     for (const shipperEmail of REAL_EMAILS.shippers) {
       console.log(`📧 WOULD SEND TO: ${shipperEmail}`);
       console.log(`📋 SUBJECT: ${subject}`);
-      console.log(`📄 CONTENT: ${htmlContent}`);
+      console.log(`📄 CONTENT: ${htmlContent.substring(0, 200)}...`);
       console.log('-----------------------------------');
       
       results.push({
@@ -242,7 +268,7 @@ function fallbackToConsoleLogging(type: string, data: any) {
     for (const email of allRecipients) {
       console.log(`📧 WOULD SEND TO: ${email}`);
       console.log(`📋 SUBJECT: ${subject}`);
-      console.log(`📄 CONTENT: ${htmlContent}`);
+      console.log(`📄 CONTENT: ${htmlContent.substring(0, 200)}...`);
       console.log('-----------------------------------');
       
       results.push({
@@ -261,7 +287,9 @@ function fallbackToConsoleLogging(type: string, data: any) {
       type,
       results,
       recipients: type === 'NEW_REQUIREMENT' ? REAL_EMAILS.shippers : [...REAL_EMAILS.shippers, REAL_EMAILS.admin],
-      provider: 'Console (Fallback)'
+      provider: 'Console (Fallback)',
+      totalAttempted: emailsSent,
+      totalSent: 0 // 0 because no real emails were sent
     }),
     {
       headers: {

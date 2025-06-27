@@ -45,10 +45,10 @@ export class EmailService {
       const result = await response.json();
       console.log('✅ Email notification result:', result);
       
-      // Show user-friendly notification
+      // Show user-friendly notification based on actual results
       if (result.success) {
-        if (result.provider === 'Resend') {
-          console.log(`📧 ${result.message} to:`, result.recipients);
+        if (result.provider === 'Resend' && result.totalSent > 0) {
+          console.log(`📧 ${result.totalSent} emails sent successfully via Resend to:`, result.recipients);
           // Show success notification to user
           if (typeof window !== 'undefined') {
             const notification = document.createElement('div');
@@ -71,15 +71,15 @@ export class EmailService {
                 <span style="margin-right: 8px;">📧</span>
                 <div>
                   <div style="font-weight: 600;">Emails Sent!</div>
-                  <div style="opacity: 0.9; font-size: 12px;">${result.recipients.length} recipients notified</div>
+                  <div style="opacity: 0.9; font-size: 12px;">${result.totalSent} of ${result.totalAttempted} recipients notified</div>
                 </div>
               </div>
             `;
             document.body.appendChild(notification);
             setTimeout(() => notification.remove(), 5000);
           }
-        } else {
-          console.log('⚠️ Emails logged to console (Resend not configured)');
+        } else if (result.provider === 'Console (Fallback)' || result.totalSent === 0) {
+          console.log('⚠️ Emails logged to console - Resend API key not configured');
           // Show warning notification
           if (typeof window !== 'undefined') {
             const notification = document.createElement('div');
@@ -102,12 +102,12 @@ export class EmailService {
                 <span style="margin-right: 8px;">⚠️</span>
                 <div>
                   <div style="font-weight: 600;">Email Service Not Configured</div>
-                  <div style="opacity: 0.9; font-size: 12px;">Check console for email content</div>
+                  <div style="opacity: 0.9; font-size: 12px;">Add RESEND_API_KEY to Supabase</div>
                 </div>
               </div>
             `;
             document.body.appendChild(notification);
-            setTimeout(() => notification.remove(), 7000);
+            setTimeout(() => notification.remove(), 8000);
           }
         }
       }
