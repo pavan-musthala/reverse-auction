@@ -4,32 +4,83 @@ import { Database } from '../types/database';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Add better error handling and logging
+// Enhanced error handling and logging
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase environment variables:', {
     url: !!supabaseUrl,
-    key: !!supabaseAnonKey
+    key: !!supabaseAnonKey,
+    urlValue: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined',
+    keyValue: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'undefined'
   });
-  
-  // Don't throw error immediately, let the app handle it gracefully
-  console.warn('Supabase client will not work without proper environment variables');
+}
+
+// Validate URL format
+if (supabaseUrl && !supabaseUrl.startsWith('https://')) {
+  console.error('Invalid Supabase URL format. Must start with https://');
 }
 
 export const supabase = createClient<Database>(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key',
+  supabaseUrl || '',
+  supabaseAnonKey || '',
   {
     auth: {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'supabase-js-web'
+      }
     }
   }
 );
 
 // Export a function to check if Supabase is properly configured
 export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey && 
-    supabaseUrl !== 'https://placeholder.supabase.co' && 
-    supabaseAnonKey !== 'placeholder-key');
+  const isConfigured = !!(supabaseUrl && supabaseAnonKey && 
+    supabaseUrl.startsWith('https://') && 
+    supabaseAnonKey.length > 20);
+  
+  if (!isConfigured) {
+    console.warn('Supabase is not properly configured:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseAnonKey,
+      urlFormat: supabaseUrl ? supabaseUrl.startsWith('https://') : false,
+      keyLength: supabaseAnonKey ? supabaseAnonKey.length : 0
+    });
+  }
+  
+  return isConfigured;
 };
+
+// Test connection function
+export const testSupabaseConnection = async () => {
+  try {
+    console.log('Testing Supabase connection...');
+    const { data, error } = await supabase
+      .from('requirements')
+      .select('count')
+      .limit(1);
+    
+    if (error) {
+      console.error('Supabase connection test failed:', error);
+      return false;
+    }
+    
+    console.log('Supabase connection test successful');
+    return true;
+  } catch (err) {
+    console.error('Supabase connection test error:', err);
+    return false;
+  }
+};
+
+// Initialize connection test on module load
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    if (isSupabaseConfigured()) {
+      testSupabaseConnection();
+    }
+  }, 1000);
+}
