@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LogIn, User, Shield, UserPlus, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 const LoginForm: React.FC = () => {
   const { login, loading } = useAuth();
@@ -20,6 +20,11 @@ const LoginForm: React.FC = () => {
   // Initialize demo accounts on component mount
   useEffect(() => {
     const initializeDemoAccounts = async () => {
+      if (!isSupabaseConfigured()) {
+        setDemoAccountsStatus('failed');
+        return;
+      }
+
       try {
         const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/setup-demo-accounts`;
         
@@ -45,12 +50,19 @@ const LoginForm: React.FC = () => {
       }
     };
 
-    initializeDemoAccounts();
+    // Add delay to avoid race conditions
+    const timer = setTimeout(initializeDemoAccounts, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (!isSupabaseConfigured()) {
+      setError('Database connection not configured. Please check your environment settings.');
+      return;
+    }
     
     const success = await login(formData.email, formData.password, formData.role);
     if (!success) {
@@ -67,6 +79,12 @@ const LoginForm: React.FC = () => {
     e.preventDefault();
     setError('');
     setSignUpLoading(true);
+
+    if (!isSupabaseConfigured()) {
+      setError('Database connection not configured. Please check your environment settings.');
+      setSignUpLoading(false);
+      return;
+    }
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -123,6 +141,10 @@ const LoginForm: React.FC = () => {
               src="/befach.jpg" 
               alt="Befach International Logo" 
               className="w-full h-full object-contain"
+              onError={(e) => {
+                console.warn('Logo image failed to load');
+                e.currentTarget.style.display = 'none';
+              }}
             />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Reverse Auction Tool</h1>
@@ -132,8 +154,21 @@ const LoginForm: React.FC = () => {
           </p>
         </div>
 
+        {/* Connection Status */}
+        {!isSupabaseConfigured() && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+            <div className="flex items-start">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 mr-2 flex-shrink-0" />
+              <div className="text-sm text-red-700">
+                <p className="font-medium mb-1">Connection Error</p>
+                <p>Database connection not configured. Please check your environment settings.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Demo Account Status */}
-        {demoAccountsStatus === 'failed' && !isSignUp && (
+        {isSupabaseConfigured() && demoAccountsStatus === 'failed' && !isSignUp && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
             <div className="flex items-start">
               <Info className="w-4 h-4 text-amber-600 mt-0.5 mr-2 flex-shrink-0" />
@@ -146,7 +181,7 @@ const LoginForm: React.FC = () => {
         )}
 
         {/* Demo Credentials Helper */}
-        {!isSignUp && demoAccountsStatus === 'success' && (
+        {isSupabaseConfigured() && !isSignUp && demoAccountsStatus === 'success' && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
             <div className="flex items-start">
               <Info className="w-4 h-4 text-blue-600 mt-0.5 mr-2 flex-shrink-0" />
@@ -278,7 +313,7 @@ const LoginForm: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading || signUpLoading}
+            disabled={loading || signUpLoading || !isSupabaseConfigured()}
             className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white py-2.5 sm:py-3 px-4 rounded-xl font-semibold hover:from-orange-600 hover:to-amber-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50 text-sm sm:text-base"
           >
             {loading || signUpLoading ? (

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { ProductRequirement, Bid, AuctionContextType } from '../types';
 import { Database } from '../types/database';
@@ -12,6 +12,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [requirements, setRequirements] = useState<ProductRequirement[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Transform database row to ProductRequirement
   const transformRequirement = (row: Database['public']['Tables']['requirements']['Row']): ProductRequirement => ({
@@ -38,9 +39,13 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     timestamp: new Date(row.created_at || new Date().toISOString())
   });
 
-  // Load requirements from Supabase
+  // Load requirements from Supabase with error handling
   const loadRequirements = async () => {
     try {
+      if (!isSupabaseConfigured()) {
+        throw new Error('Supabase is not properly configured');
+      }
+
       const { data, error } = await supabase
         .from('requirements')
         .select('*')
@@ -48,21 +53,59 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       if (error) {
         console.error('Error loading requirements:', error);
+        setConnectionError(`Database error: ${error.message}`);
         return;
       }
 
       if (data) {
         const transformedRequirements = data.map(transformRequirement);
         setRequirements(transformedRequirements);
+        setConnectionError(null);
       }
     } catch (error) {
       console.error('Error loading requirements:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setConnectionError(errorMessage);
+      
+      // Show user-friendly error notification
+      if (typeof window !== 'undefined') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #dc2626;
+          color: white;
+          padding: 12px 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 10000;
+          font-family: system-ui, -apple-system, sans-serif;
+          font-size: 14px;
+          max-width: 300px;
+        `;
+        notification.innerHTML = `
+          <div style="display: flex; align-items: center;">
+            <span style="margin-right: 8px;">❌</span>
+            <div>
+              <div style="font-weight: 600;">Connection Error</div>
+              <div style="opacity: 0.9; font-size: 12px;">Check your internet connection</div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 5000);
+      }
     }
   };
 
-  // Load bids from Supabase
+  // Load bids from Supabase with error handling
   const loadBids = async () => {
     try {
+      if (!isSupabaseConfigured()) {
+        throw new Error('Supabase is not properly configured');
+      }
+
       const { data, error } = await supabase
         .from('bids')
         .select('*')
@@ -82,60 +125,89 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  // Initial data load
+  // Initial data load with retry logic
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([loadRequirements(), loadBids()]);
-      setLoading(false);
+      setConnectionError(null);
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      if (!isSupabaseConfigured()) {
+        setConnectionError('Database connection not configured');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        await Promise.all([loadRequirements(), loadBids()]);
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    if (user) {
-      loadData();
-    } else {
-      setLoading(false);
-    }
+    loadData();
   }, [user]);
 
-  // Set up real-time subscriptions
+  // Set up real-time subscriptions with error handling
   useEffect(() => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured()) return;
 
-    // Subscribe to requirements changes
-    const requirementsSubscription = supabase
-      .channel('requirements-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'requirements'
-        },
-        () => {
-          loadRequirements();
-        }
-      )
-      .subscribe();
+    let requirementsSubscription: any;
+    let bidsSubscription: any;
 
-    // Subscribe to bids changes
-    const bidsSubscription = supabase
-      .channel('bids-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'bids'
-        },
-        () => {
-          loadBids();
-        }
-      )
-      .subscribe();
+    try {
+      // Subscribe to requirements changes
+      requirementsSubscription = supabase
+        .channel('requirements-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'requirements'
+          },
+          () => {
+            loadRequirements();
+          }
+        )
+        .subscribe();
+
+      // Subscribe to bids changes
+      bidsSubscription = supabase
+        .channel('bids-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'bids'
+          },
+          () => {
+            loadBids();
+          }
+        )
+        .subscribe();
+    } catch (error) {
+      console.error('Failed to set up real-time subscriptions:', error);
+    }
 
     return () => {
-      requirementsSubscription.unsubscribe();
-      bidsSubscription.unsubscribe();
+      try {
+        if (requirementsSubscription) {
+          requirementsSubscription.unsubscribe();
+        }
+        if (bidsSubscription) {
+          bidsSubscription.unsubscribe();
+        }
+      } catch (error) {
+        console.error('Error unsubscribing from real-time channels:', error);
+      }
     };
   }, [user]);
 
@@ -159,6 +231,10 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
     if (!user) {
       console.error('User not authenticated');
       return;
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error('Database connection not configured');
     }
 
     try {
@@ -210,7 +286,7 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const deleteRequirement = async (requirementId: string) => {
-    if (!user) return;
+    if (!user || !isSupabaseConfigured()) return;
 
     try {
       const { error } = await supabase
@@ -235,6 +311,11 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
   const addBid = async (bid: Omit<Bid, 'id' | 'timestamp'>): Promise<boolean> => {
     if (!user) {
       console.error('User not authenticated');
+      return false;
+    }
+
+    if (!isSupabaseConfigured()) {
+      console.error('Database connection not configured');
       return false;
     }
 
@@ -361,6 +442,29 @@ export const AuctionProvider: React.FC<{ children: ReactNode }> = ({ children })
         <div className="text-center">
           <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-amber-500 rounded-full animate-pulse mx-auto mb-4"></div>
           <p className="text-gray-600">Loading auction data...</p>
+          {connectionError && (
+            <p className="text-red-600 text-sm mt-2">Connection issue: {connectionError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (connectionError && requirements.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-amber-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-red-600 text-2xl">❌</span>
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h2>
+          <p className="text-gray-600 mb-4">{connectionError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          >
+            Retry Connection
+          </button>
         </div>
       </div>
     );

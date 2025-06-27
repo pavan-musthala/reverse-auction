@@ -32,6 +32,9 @@ export const supabase = createClient<Database>(
       headers: {
         'X-Client-Info': 'supabase-js-web'
       }
+    },
+    db: {
+      schema: 'public'
     }
   }
 );
@@ -54,10 +57,16 @@ export const isSupabaseConfigured = () => {
   return isConfigured;
 };
 
-// Test connection function
+// Test connection function with better error handling
 export const testSupabaseConnection = async () => {
   try {
     console.log('Testing Supabase connection...');
+    
+    if (!isSupabaseConfigured()) {
+      console.error('Supabase configuration invalid');
+      return false;
+    }
+
     const { data, error } = await supabase
       .from('requirements')
       .select('count')
@@ -76,11 +85,11 @@ export const testSupabaseConnection = async () => {
   }
 };
 
-// Initialize connection test on module load
+// Initialize connection test on module load with delay
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     if (isSupabaseConfigured()) {
       testSupabaseConnection();
     }
-  }, 1000);
+  }, 2000); // Increased delay to avoid race conditions
 }
